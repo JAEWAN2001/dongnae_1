@@ -1219,5 +1219,213 @@ FX.restore=()=>{glitch();SFX.power();hideRec();FX.alarmOff();document.body.class
  PW.rate=.32;setPower(1);yaw=.9;pitch=0;tyaw=0;tpitch=.26;R.word.visible=true;tween(2.2,e=>{R.wordMat.opacity=e},2.2)};
 FX.end=()=>{finish();return 'wait'};
 </script>
+
+<script>
+'use strict';
+/* ===== PART 3-B-2 : 장면 공용 도우미(2) · 동래읍성 장면 · 챕터 1 연출 ===== */
+
+/* 텍스처에 쓰는 한글 글꼴 미리 받기 (실패하면 시스템 글꼴로 대체) */
+(function(){try{if(!document.fonts||!document.fonts.load)return;
+ const t='自동래읍성시장온천천현재존재떡어묵과일채소생선반찬꽃국밥호떡빵함께사는잠시쉬어가세요필요한사람이먼저앉을수있도록청소참여자모집어르신이동지원행사준비도움요청나눠요무료감사합니다명외환경정화활동내용일시장소신청기록인원처교육안전배치관리사고보고서넘어짐담당자응급처치완료전장갑착용도구사용법비상연락처즉시알리기확인필수약속한시간에하고맡은역할을끝까지다하겠습니다급식운영재난복구봉사동행';
+ ['700 32px "Noto Sans KR"','900 32px "Noto Sans KR"'].forEach(f=>document.fonts.load(f,t).catch(()=>0))}catch(e){}})();
+
+/* ---------- 공용 도우미 (PART 4에서도 사용) ---------- */
+const FONT_KR='"Noto Sans KR","Apple SD Gothic Neo","Malgun Gothic",sans-serif';
+function hmap(tex,op){return new THREE.MeshBasicMaterial({map:tex,transparent:true,opacity:op==null?.9:op,blending:THREE.AdditiveBlending,depthWrite:false,side:THREE.DoubleSide,fog:false})}
+function view(deg,p){yaw=-deg*DEG;pitch=p||0;tyaw=tpitch=null;vyaw=0;if(camera)camera.position.set(0,1.7,0)}
+function glyphTex(ch,col){return canvasTex(128,128,x=>{x.textAlign='center';x.textBaseline='middle';x.shadowColor=col;x.shadowBlur=22;x.fillStyle='#fff';x.font='900 86px '+FONT_KR;x.fillText(ch,64,68)})}
+function panelTex(title,lines,col,w,h){w=w||256;h=h||128;return canvasTex(w,h,x=>{
+ x.fillStyle='rgba(255,255,255,.06)';x.fillRect(0,0,w,h);x.strokeStyle=col;x.lineWidth=3;x.strokeRect(3,3,w-6,h-6);
+ x.fillStyle=col;x.fillRect(3,3,w-6,28);x.fillStyle='#06100e';x.textBaseline='middle';x.font='700 16px "Chakra Petch",'+FONT_KR;x.fillText(title,11,18,w-22);
+ x.fillStyle=col;x.font='700 17px '+FONT_KR;const gap=(h-44)/Math.max(1,lines.length);lines.forEach((l,i)=>x.fillText(l,12,44+gap*(i+.5),w-24));
+ x.globalAlpha=.14;for(let y=0;y<h;y+=4)x.fillRect(0,y,w,1)})}
+function signTex(t,col,w){w=w||128;return canvasTex(w,64,x=>{x.textAlign='center';x.textBaseline='middle';x.shadowColor=col;x.shadowBlur=14;x.fillStyle='#fff';
+ x.font='900 38px '+FONT_KR;x.fillText(t,w/2,34,w-16);x.shadowBlur=0;x.strokeStyle=col;x.lineWidth=3;x.strokeRect(4,4,w-8,56)})}
+function burst(p,col,n,x,y,z,sp,up,life){if(!GL||RM)return;const pos=new Float32Array(n*3),vel=[];
+ for(let i=0;i<n;i++){pos[i*3]=x;pos[i*3+1]=y;pos[i*3+2]=z;vel.push([(Math.random()-.5)*sp,up*(.3+Math.random()),(Math.random()-.5)*sp])}
+ const geo=new THREE.BufferGeometry();geo.setAttribute('position',new THREE.BufferAttribute(pos,3));
+ const m=new THREE.PointsMaterial({map:haloTex,color:col,size:.3,transparent:true,blending:THREE.AdditiveBlending,depthWrite:false,fog:false}),pt=new THREE.Points(geo,m),t0=performance.now(),L=(life||1.6)*1000;p.add(pt);
+ anims.push((tm,dt)=>{const e=(performance.now()-t0)/L;if(e>=1){p.remove(pt);geo.dispose();m.dispose();return 1}
+  for(let i=0;i<n;i++){const v=vel[i];v[1]-=dt*1.1;pos[i*3]+=v[0]*dt;pos[i*3+1]+=v[1]*dt;pos[i*3+2]+=v[2]*dt}
+  geo.attributes.position.needsUpdate=true;m.opacity=1-e;return 0})}
+function wave(p,col,x,y,z,flat,mx,d){if(!GL||RM)return;const m=hf(col,.8),o=add(p,new THREE.RingGeometry(.3,.38,40),m,x,y,z),t0=performance.now();if(flat)o.rotation.x=-Math.PI/2;
+ anims.push(()=>{const e=(performance.now()-t0)/(d*1000);if(e>=1){p.remove(o);o.geometry.dispose();m.dispose();return 1}o.scale.setScalar(1+e*mx);m.opacity=.8*(1-e);return 0})}
+function shake(d,a){if(!GL||RM)return;tween(d,e=>{const k=a*(1-e);camera.position.set((Math.random()-.5)*k,1.7+(Math.random()-.5)*k,(Math.random()-.5)*k)})}
+
+/* ================= 장면 0 : 동래읍성 — 깨진 문화유산 보호구역 ================= */
+SCN[0]=function(){resetWorld(PAL.fort);const W=world,D=CH[0].objs;
+ add(W,CY(80,80,.2,40),0x2b231e,0,-.1,0);add(W,new THREE.RingGeometry(2.8,9.6,56),0x3a312a,0,.012,0).rotation.x=-Math.PI/2;
+ /* 성곽 : 무너진 구간 · 강철 비계 · 꺼진 경관 조명(복구 60%에서 점등) */
+ const stone=mat(0x5f5751),stone2=mat(0x4b4541),steel=kmat('steel',{color:0x8d949e,metalness:.6,roughness:.4}),wl=neon(0xffb340);
+ const gS=B(3.5,4,1.1),gC=B(.9,.8,1.1),gR=B(3.3,1.4,1.2),gL=B(3.5,.06,.06),gP=B(.09,4.8,.09),gX=B(.06,5.2,.06),gD=B(3.1,.08,.5),gK=IC(.45),broken=[4,11,20,25];
+ ring(28,(i,d)=>{const w=new THREE.Group();
+  if(broken.includes(i)){add(w,gR,stone2,0,.7,0).rotation.z=.1;for(let k=0;k<4;k++)add(w,gK,stone,-1.4+k*.9,.25,.9+(k%2)*.5).rotation.set(k,k*2,0)}
+  else{add(w,gS,stone,0,2,0);add(w,gC,stone2,-1.05,4.4,0);if(i%2)add(w,gC,stone2,1.05,4.4,0);add(w,gL,wl,0,3.95,.58)}
+  if(i%4===1){add(w,gP,steel,-1.45,2.4,.95);add(w,gP,steel,1.45,2.4,.95);add(w,gX,steel,0,2.4,.95).rotation.z=.62;add(w,gX,steel,0,2.4,.95).rotation.z=-.62;add(w,gD,steel,0,2.2,1.1)}
+  W.add(at(w,d,15))});
+ lamp({t:.6,em:[[wl,1.3,0]]});
+ /* 누각 + 임시 강철 지지대 */
+ const pv=new THREE.Group(),wd=mat(0x5b3a24),rg=new THREE.Group();
+ [[-1.7,-.8],[1.7,-.8],[-1.7,.8],[1.7,.8]].forEach(q=>add(pv,CY(.15,.17,3.4,6),wd,q[0],1.7,q[1]));
+ add(pv,B(4.4,.4,2.3),0x4b2d1c,0,3.55,0);rg.position.y=4.55;rg.scale.set(1.25,1,.72);rg.rotation.z=.05;pv.add(rg);add(rg,CO(2.9,1.6,4),0x262c3a).rotation.y=Math.PI/4;
+ add(pv,B(.07,3.6,.07),steel,2.3,1.7,1.15).rotation.z=-.35;add(pv,B(.07,3.6,.07),steel,-2.3,1.7,1.15).rotation.z=.35;beacon(pv,0,3.95,1.25,.8,0xffd9a0);
+ W.add(at(pv,-62,12));
+ /* 문화유산 보호막 돔 : 붕괴 땐 붉은 조각만 깜빡이고, 완전 복구되면 민트빛 돔이 완성된다 */
+ const dR=hf(0xff3d5a,.12,true),dM=hf(0x3df5c4,0,true);
+ const dr=add(W,new THREE.SphereGeometry(23,26,9,0,Math.PI*1.3,0,Math.PI/2),dR);dr.rotation.y=2.2;
+ add(W,new THREE.SphereGeometry(23.3,26,9,0,Math.PI*2,0,Math.PI/2),dM);
+ anims.push((tm,dt)=>{const on=PW.lv>=.999;dR.opacity+=((on?0:Math.random()<.07?.02:.12)-dR.opacity)*Math.min(1,dt*8);dr.visible=dR.opacity>.012;dM.opacity+=((on?.2:PW.lv*.05)-dM.opacity)*Math.min(1,dt*1.5)});
+ [45,135,225,315].forEach((d,i)=>{const g=new THREE.Group(),tm=neon(0x3df5c4),t=[.4,.6,.8,1][i];add(g,CY(.25,.45,8,6),0x30353f,0,4,0);add(g,SP(.5,8),tm,0,8.3,0);beacon(g,0,9.1,0,t);lamp({t,em:[[tm,1.6,0]]});W.add(at(g,d,21))});
+ /* 붉은 경보등 → 복구되면 따뜻한 가로등 */
+ [[-60,9.5,.2],[0,9.8,.4],[55,9.5,.6],[110,9.5,.8],[170,9.5,1],[250,9.5,.6]].forEach(q=>{const g=new THREE.Group();add(g,CY(.06,.08,3.6,6),0x3a3f4a,0,1.8,0);add(g,B(.34,.3,.34),0x2a2f38,0,3.72,0);
+  beacon(g,0,3.8,0,q[2],0xffd9a0);const pm=pool(g,0xffcf8a,2.3,0,0);lamp({t:q[2],op:[[pm,.5]]});W.add(at(g,q[0],q[1]))});
+ skyline(W,20,30,56,12,40,11);
+ billboard(W,105,13,5.6,4.6,2.3,['HERITAGE ALERT','문화유산 보호막 OFF'],['DONGNAE-EUPSEONG','문화유산 보호막 ON'],1);
+ debris(16,3,9,.6);debris(14,3,9,1);
+ /* 무너진 성곽을 바라보고 그냥 지나가는 사람들 → 완전 복구되면 고치고 줍는 사람이 나타난다 */
+ person(W,{path:[-8,6,8,7.4],v:.9,t:.6});person(W,{path:[7,-8.6,-7.5,-7],v:.8,t:.8});person(W,{r:12,v:.8,dir:-1,t:1});
+ const vol=new THREE.Group();W.add(vol);lamp({t:1,vis:[vol]});
+ const [ax,az]=wxz(51,13.3),v1=person(vol,{still:true,t:1,col:0x3df5c4,pos:[ax,az,Math.PI-51*DEG]});add(v1.g,B(.05,.05,.8),0x8a8f98,.26,1.05,.42);
+ const [cx,cz]=wxz(-100,6.2),v2=person(vol,{still:true,t:1,col:0xffb340,pos:[cx,cz,100*DEG]});add(v2.g,B(.3,.4,.22),0x2f6b3e,.32,.7,.1);
+
+ /* ① 찢어진 깃발 : 찢긴 부분을 홀로그램이 채운다 */
+ {const g=new THREE.Group(),fg=new THREE.Group(),cl=mat(0x8f2b26),fh=hf(0x3df5c4,0),fe=neon(0x3df5c4,0x2a2f38);
+  add(g,CY(.07,.1,4.5,6),0x70767f,0,2.25,0);add(g,SP(.16),0x9aa1ab,0,4.55,0);fg.position.y=3.55;g.add(fg);
+  add(fg,B(1.15,1.5,.05),cl,.62,0,0);add(fg,B(.62,.62,.05),cl,1.5,.44,0).rotation.z=-.22;add(fg,new THREE.TorusGeometry(.26,.05,6,18),0xd9c9a0,.62,0,.04);
+  add(fg,B(1,1.5,.03),fh,1.7,0,0);add(g,CY(.38,.48,.22,10),fe,0,.11,0);lamp({t:.2,op:[[fh,.42]],em:[[fe,1.3,0]]});
+  anims.push(tm=>{fg.rotation.y=Math.sin(tm*1.3)*.16;fg.rotation.z=Math.sin(tm*2.1)*.02});addObj(D[0],g,-25,5.6,0,4.9)}
+ /* ② 금이 간 비석 : 기록 장치에 「선택의 기록」을 넣으면 빛난다 */
+ {const g=new THREE.Group(),sm=neon(0x3df5c4,0x77736e),dv=neon(0xff3d5a,0x22262e),ST={g,sm,dv,on:false};
+  add(g,B(1.8,.34,1),0x47423f,0,.17,0);add(g,B(1.2,2,.32),0x8d8a86,0,1.34,0);add(g,B(.04,1.3,.34),0x1b1b1b,.2,1.45,0).rotation.z=.42;
+  for(let k=0;k<6;k++)add(g,B(k%2?.55:.75,.05,.02),sm,-.04,1.98-k*.2,.17);add(g,B(.5,.2,.12),dv,0,.6,.2);
+  R.stele=ST;anims.push(tm=>{if(!ST.on)dv.emissiveIntensity=Math.sin(tm*5)>0?1.2:.15});addObj(D[1],g,30,6,0,2.7)}
+ /* ③ 돌문 : 새겨진 문양이 현재 동래구 지도와 겹쳐진다 */
+ {const g=new THREE.Group(),ds=mat(0x6f6862),dm=neon(0x3df5c4,0x2b3a36),mh=hf(0x3df5c4,0),pts=[[-.55,2.3],[.35,2.05],[-.15,1.62],[.55,1.2],[-.42,.92],[.12,.55]];
+  add(g,B(.6,3,.6),ds,-1.3,1.5,0);add(g,B(.6,3,.6),ds,1.3,1.5,0);add(g,B(3.4,.6,.8),0x5f5852,0,3.2,0);add(g,B(2,2.9,.2),0x857d75,0,1.45,0);
+  pts.forEach(q=>add(g,B(.18,.18,.06),dm,q[0],q[1],.12));dm.emissiveIntensity=.12;
+  for(let k=0;k<pts.length-1;k++){const a=pts[k],b=pts[k+1];add(g,B(Math.hypot(b[0]-a[0],b[1]-a[1]),.035,.01),mh,(a[0]+b[0])/2,(a[1]+b[1])/2,.16).rotation.z=Math.atan2(b[1]-a[1],b[0]-a[0])}
+  const mp=add(g,new THREE.PlaneGeometry(2.4,1.2),hmap(panelTex('OLD MAP ↔ NOW',['동래읍성 · EXIST','동래시장 · EXIST','온천천 · EXIST'],'#3df5c4'),0),0,1.15,.95);mp.visible=false;
+  R.map1={g,dm,mh,mp};addObj(D[2],g,82,7.5,0,3.9)}
+ /* ④ 잠긴 기록함 : 전자 잠금장치 → 열리면 종이 기록과 「自」 조각 */
+ {const g=new THREE.Group(),lid=new THREE.Group(),lk=neon(0xff3d5a,0x22262e),pap=new THREE.Group(),pm=mat(0xefe6cf),gm=hmap(glyphTex('自','#3df5c4'),0);
+  add(g,B(1.3,.74,.85),0x5f3a22,0,.37,0);lid.position.set(0,.74,-.42);g.add(lid);add(lid,B(1.34,.24,.88),0x6f4428,0,.12,.43);
+  add(g,B(1.36,.09,.88),0xb08a3a,0,.6,0);add(g,B(.34,.26,.06),lk,0,.48,.45);
+  pap.visible=false;g.add(pap);for(let k=0;k<6;k++)add(pap,B(.26,.012,.32),pm,(k%3-1)*.34,.76,k<3?-.14:.14).rotation.y=(k-2.5)*.15;
+  const gl=add(g,new THREE.PlaneGeometry(.8,.8),gm,0,1.25,.1),CS={g,lid,lk,pap,gl,gm,open:false};gl.visible=false;R.chest=CS;
+  anims.push(tm=>{if(!CS.open)lk.emissiveIntensity=Math.sin(tm*4)>0?1.3:.15;else{gl.position.y=1.25+Math.sin(tm*1.6)*.06;gl.rotation.y=Math.sin(tm*.9)*.4}});
+  addObj(D[3],g,140,5.2,0,1.6)}
+ /* ⑤ 봉인된 돌문 : 「自」 조각을 끼우면 봉인이 풀리고 문이 내려간다 */
+ {const g=new THREE.Group(),gs=mat(0x4f4945),door=new THREE.Group(),sl=neon(0xff3d5a,0x1b1d22),rm=hf(0xff3d5a,.85),sk=hmap(glyphTex('自','#3df5c4'),0),pv2=hf(0x3df5c4,0);
+  add(g,B(1,4.6,1),gs,-2.1,2.3,0);add(g,B(1,4.6,1),gs,2.1,2.3,0);add(g,B(5.4,.9,1.2),0x433d3a,0,4.9,0);add(g,B(5.6,.12,.14),steel,0,4.38,.62);
+  g.add(door);add(door,B(3.2,4.4,.35),0x2c2f35,0,2.2,0);add(door,B(3.02,.05,.37),sl,0,1.1,0);add(door,B(3.02,.05,.37),sl,0,3.3,0);
+  const sr=add(door,new THREE.TorusGeometry(.42,.06,6,28),rm,0,2.3,.21);add(door,new THREE.PlaneGeometry(.62,.62),sk,0,2.3,.22);add(g,new THREE.PlaneGeometry(3.2,4.4),pv2,0,2.2,-.3);
+  const GT={g,door,sl,rm,sk,pv:pv2,sock:false};R.gate=GT;
+  anims.push(tm=>{sr.rotation.z=tm*(GT.sock?1.6:.4);if(!GT.sock){rm.opacity=.5+.35*Math.sin(tm*4);sl.emissiveIntensity=.3+.3*Math.sin(tm*4)}});
+  addObj(D[4],g,215,10,0,5.6)}
+ dust(220,0x9b8b7b,44,15,false);dust(110,0x3df5c4,40,13,true);unfog();view(-14,.03)};
+
+/* ================= 연출 : 챕터 1 ================= */
+FX.stele=()=>{SFX.item();const s=R.stele;if(!GL||!s)return;s.on=true;s.dv.emissive.setHex(0x3df5c4);s.dv.emissiveIntensity=1.4;fadeTo(s.sm,'emissiveIntensity',1.7,1.2);
+ const h=halo(s.g,0x3df5c4,3.4,0,1.4,.4,0);tween(1.4,e=>{h.material.opacity=.85*Math.sin(e*Math.PI)+.18*e});burst(s.g,0x3df5c4,26,0,1.4,.3,1.6,1.4)};
+FX.mapGlow=()=>{SFX.item();const m=R.map1;if(!GL||!m)return;fadeTo(m.dm,'emissiveIntensity',1.8,1);fadeTo(m.mh,'opacity',.9,1.2);
+ m.mp.visible=true;tween(.8,e=>{m.mp.scale.set(.2+.8*e,.2+.8*e,1);m.mp.material.opacity=.8*e},.4)};
+FX.chestOpen=()=>{SFX.open();const c=R.chest;if(!GL||!c)return;c.open=true;c.lk.emissive.setHex(0x3df5c4);c.lk.emissiveIntensity=1.2;
+ tween(1.1,e=>{c.lid.rotation.x=-1.9*e});c.pap.visible=c.gl.visible=true;fadeTo(c.gm,'opacity',1,1.2);
+ const h=halo(c.g,0xffd27a,2.6,0,.9,0,0);tween(1.6,e=>{h.material.opacity=.8*Math.sin(e*Math.PI)});burst(c.g,0xffd27a,30,0,.8,0,1.4,2)};
+FX.socket=()=>{SFX.item();const G=R.gate;if(!GL||!G)return;G.sock=true;G.rm.color.setHex(0x3df5c4);G.rm.opacity=.9;G.sl.emissive.setHex(0x3df5c4);
+ fadeTo(G.sl,'emissiveIntensity',1.4,.8);fadeTo(G.sk,'opacity',1,.8);burst(G.door,0x3df5c4,24,0,2.3,.3,1.2,1)};
+FX.doorOpen=()=>{SFX.open();const G=R.gate;if(!GL||!G)return;shake(1.6,.05);tween(2.6,e=>{G.door.position.y=-4.7*e});fadeTo(G.pv,'opacity',.6,2.6);
+ const h=halo(G.g,0x3df5c4,6,0,2.2,-.2,0);tween(2.6,e=>{h.material.opacity=.7*e})};
+</script>
+
+<script>
+'use strict';
+/* ===== PART 4-A : 동래시장 — 꺼진 네온 야시장 · 챕터 2 연출 ===== */
+function boardTex(){return canvasTex(512,256,(x,w,h)=>{x.fillStyle='#3a2f28';x.fillRect(0,0,w,h);x.textAlign='center';
+ [['시장 청소 참여자 모집','#f5f0e1',18,16],['어르신 이동 지원','#ffe08a',190,22],['행사 준비 도움 요청','#d0e8ff',362,14],['함께 나눠요 · 무료','#ffd0d8',22,148],['감사합니다!','#f5f0e1',360,150]].forEach((n,i)=>{
+  x.save();x.translate(n[2]+65,n[3]+45);x.rotate((i%2?1:-1)*.04);x.fillStyle=n[1];x.fillRect(-65,-45,130,90);x.fillStyle='#e04848';x.beginPath();x.arc(0,-37,4,0,7);x.fill();
+  x.fillStyle='#2b2b2b';x.font='700 15px '+FONT_KR;x.fillText(n[0],0,-4,120);x.fillStyle='#666';x.font='500 11px '+FONT_KR;x.fillText('참여 : 김○○ 외 12명',0,22,120);x.restore()});
+ x.save();x.translate(256,178);x.fillStyle='#fff';x.fillRect(-62,-50,124,100);x.fillStyle='#8fc7e8';x.fillRect(-54,-42,108,72);   // 돕는 사람과 도움받은 사람이 함께 웃는 사진
+ [[-22,'#3df5c4'],[22,'#ffb340']].forEach(p=>{x.fillStyle=p[1];x.beginPath();x.arc(p[0],-14,11,0,7);x.fill();x.fillRect(p[0]-12,-1,24,30);x.strokeStyle='#222';x.lineWidth=2;x.beginPath();x.arc(p[0],-14,6,.25,Math.PI-.25);x.stroke()});x.restore()})}
+
+SCN[1]=function(){resetWorld(PAL.market);const W=world,D=CH[1].objs;
+ add(W,CY(80,80,.2,40),0x221f27,0,-.1,0);add(W,new THREE.RingGeometry(2.5,10.8,48),0x2d2933,0,.012,0).rotation.x=-Math.PI/2;
+ /* 노점 10곳 : 복구 단계마다 네온 간판이 하나씩 켜진다 */
+ const aw=[0xb03a30,0x2d5fbf,0xc9a020,0x2a8f55,0xc05a10,0x7a3f9a],fc=[0xff7043,0x9ccc65,0xffca28,0xef5350],nm=['떡','어묵','과일','채소','생선','반찬','꽃','국밥','호떡','빵'];
+ const gT=B(3,1.1,1.4),gP=B(.12,2.7,.12),gA=B(3.3,.12,1.9),gF=SP(.18),gN=B(2.6,.07,.07),gS=new THREE.PlaneGeometry(1.3,.65);
+ ring(10,(i,d)=>{const s=new THREE.Group(),c=WCOL[i%6],ne=neon(c),sm=hmap(signTex(nm[i],'#'+c.toString(16).padStart(6,'0')),.08);sm.color.setHex(c);
+  add(s,gT,0x4f3a2c,0,.55,0);add(s,gP,0x2c2f36,-1.45,1.35,.6);add(s,gP,0x2c2f36,1.45,1.35,.6);add(s,gA,aw[i%6],0,2.65,.25).rotation.x=.25;
+  for(let k=0;k<4;k++)add(s,gF,fc[k],-1+k*.65,1.25,.2);add(s,gN,ne,0,2.36,1.1);add(s,gS,sm,0,3.35,.35);
+  lamp({t:[.2,.4,.6,.8,1][i%5],em:[[ne,1.7,0]],fn:k=>{sm.opacity=.08+.87*k}});W.add(at(s,d+18,12.5))});
+ /* 줄전구 : 복구 80%에서 켜진다 */
+ const bp=[],ls=[],gPl=CY(.05,.05,4.6,4);
+ for(let s=0;s<5;s++){const a=(s*72+10)*DEG,b=a+150*DEG,P=u=>[11.2*(Math.sin(a)*(1-u)+Math.sin(b)*u),4.5-Math.sin(u*Math.PI)*1.1,-11.2*(Math.cos(a)*(1-u)+Math.cos(b)*u)];
+  for(let k=0;k<16;k++){const p=P(k/16),q=P((k+1)/16);ls.push(...p,...q);if(k)bp.push(...p)}
+  [a,b].forEach(r=>add(W,gPl,0x2c2f36,Math.sin(r)*11.2,2.3,-Math.cos(r)*11.2))}
+ const lg=new THREE.BufferGeometry(),bg=new THREE.BufferGeometry();lg.setAttribute('position',new THREE.Float32BufferAttribute(ls,3));bg.setAttribute('position',new THREE.Float32BufferAttribute(bp,3));
+ W.add(new THREE.LineSegments(lg,new THREE.LineBasicMaterial({color:0x15151a})));
+ const off=new THREE.Points(bg,new THREE.PointsMaterial({color:0x55525a,size:.13})),onM=new THREE.PointsMaterial({map:haloTex,color:0xffd27a,size:.8,transparent:true,opacity:0,blending:THREE.AdditiveBlending,depthWrite:false,fog:false});
+ W.add(off);W.add(new THREE.Points(bg,onM));lamp({t:.8,op:[[onM,1]],hide:[off]});
+ /* 쓰러진 배송 로봇 : 복구 40%에서 다시 일어선다 */
+ const rb=new THREE.Group(),bd=new THREE.Group(),re=neon(0xff3d5a,0x101318),gw=CY(.14,.14,.1,10);rb.add(bd);
+ add(bd,B(.8,.62,1),0xd4d9e0,0,.6,0);add(bd,B(.84,.08,1.04),0x2b303a,0,.32,0);add(bd,B(.5,.16,.04),re,0,.74,.51);add(bd,CY(.015,.015,.5,4),0x9aa1ab,.3,1.15,-.3);
+ [[-.38,-.34],[.38,-.34],[-.38,.34],[.38,.34]].forEach(q=>add(bd,gw,0x1d2026,q[0],.16,q[1]).rotation.z=Math.PI/2);
+ bd.rotation.z=Math.PI/2;bd.position.y=.42;W.add(at(rb,54,6.6));
+ anims.push((tm,dt)=>{const on=PW.lv>=.4-1e-4;bd.rotation.z+=((on?0:Math.PI/2)-bd.rotation.z)*Math.min(1,dt*2.5);bd.position.y=.42*bd.rotation.z/(Math.PI/2);
+  re.emissive.setHex(on?0x3df5c4:0xff3d5a);re.emissiveIntensity=on?1.4:(Math.sin(tm*6)>0?1.1:.1)});
+ /* 짐이 무거운 어르신 : 모두 지나치지만, 복구 60%에서 돕는 사람이 나타난다 */
+ const [ex,ez]=wxz(205,7.2),eld=person(W,{still:true,t:1,col:0x8a7060,pos:[ex,ez,-205*DEG]}),bags=new THREE.Group(),hp=new THREE.Group(),bgm=mat(0x6b8f4e);eld.neck.remove(eld.phone);
+ W.add(bags);W.add(hp);[[.45,.25],[-.4,.35],[.1,.55]].forEach(q=>add(bags,B(.35,.42,.25),bgm,ex+q[0],.21,ez+q[1]));lamp({t:.6,hide:[bags],vis:[hp]});
+ const h1=person(hp,{still:true,t:.6,col:0x3df5c4,pos:[ex+.85,ez+.35,-205*DEG]});add(h1.g,B(.4,.42,.3),bgm,0,1,.34);
+ [[[-9,-6,9,-7.5],1.1,.4],[[8.5,5.5,-8,6.5],1,.6],[[-6.5,8.5,-7,-8],.9,.6],[[6.8,-8.5,7.5,8],1.2,.8]].forEach(q=>person(W,{path:q[0],v:q[1],t:q[2]}));person(W,{r:9.6,v:.9,t:1});
+ const vol=new THREE.Group();W.add(vol);lamp({t:1,vis:[vol]});
+ [[-35,6.2],[60,7.4]].forEach(q=>{const [x,z]=wxz(q[0],q[1]),v=person(vol,{still:true,t:1,col:0x3df5c4,pos:[x,z,-q[0]*DEG]});add(v.g,B(.3,.4,.22),0x2f6b3e,.32,.7,.1)});
+ /* 시장 입구 아치 : 완전 복구되면 「동래시장」 간판이 켜진다 */
+ const ar=new THREE.Group(),an=neon(0xff9a5c),asg=hmap(signTex('동래시장','#ff9a5c',256),.06);asg.color.setHex(0xffc79a);
+ add(ar,B(.45,5.4,.45),0x2c2f36,-3.3,2.7,0);add(ar,B(.45,5.4,.45),0x2c2f36,3.3,2.7,0);add(ar,B(7.2,.7,.5),0x23262d,0,5.35,0);add(ar,B(7,.06,.06),an,0,4.95,.28);
+ add(ar,new THREE.PlaneGeometry(4.2,1.05),asg,0,5.35,.3);lamp({t:1,em:[[an,1.7,0]],fn:k=>{asg.opacity=.06+.89*k}});W.add(at(ar,180,14));
+ billboard(W,-120,16,6.4,4.6,2.3,['LINK LOST','공동체 연결률 3%'],['DONGNAE MARKET','공동체 연결망 ON'],1);
+ skyline(W,20,26,50,10,34,7);debris(20,3,9,.6);debris(12,3,9,1);
+ /* 과거 기록 영상(FX.replay) : 함께 상자를 나르고, 어르신을 돕던 사람들 */
+ const rp=new THREE.Group(),gm=hf(0xffc070,.5),[bx,bz]=wxz(40,5.5),[qx,qz]=wxz(22,4),[tx,tz]=wxz(-25,5);rp.visible=false;W.add(rp);
+ ghost(rp,bx-.9,bz+.6,Math.PI/2,'carry',gm);ghost(rp,bx+.9,bz+.5,-Math.PI/2,'carry',gm);ghost(rp,qx,qz,2.4,'carry',gm);
+ ghost(rp,ex+.8,ez+.3,-205*DEG,'pair',gm);ghost(rp,tx+.7,tz+.3,-1.2,'bend',gm);
+ anims.push(tm=>{if(rp.visible)gm.opacity=.42+.1*Math.sin(tm*8)-(Math.random()<.05?.25:0)});R.replay=rp;
+
+ /* ① 쓰러진 쓰레기통 (스마트 수거함) */
+ {const g=new THREE.Group(),bb=new THREE.Group(),bs=neon(0xff3d5a,0x16191f),tr=new THREE.Group(),TC=[0xd8d2c0,0x7f9aaf,0xb98a5a],BN={bb,bs,tr,up:false};
+  g.add(bb);add(bb,CY(.42,.36,1.1,10),0x3f6e5a,0,.55,0);add(bb,CY(.45,.45,.1,10),0x2a2f38,0,1.12,0);add(bb,B(.34,.22,.05),bs,0,.72,.4);bb.rotation.z=-Math.PI/2;bb.position.set(-.55,.42,0);
+  g.add(tr);for(let k=0;k<9;k++)add(tr,k%3?B(.26,.06,.22):CY(.06,.06,.22,6),TC[k%3],.9+Math.random()*1.1,.04,(Math.random()-.5)*1.4).rotation.y=Math.random()*3;
+  R.bin=BN;anims.push(tm=>{if(!BN.up)bs.emissiveIntensity=Math.sin(tm*5)>0?1:.1});addObj(D[0],g,-25,5,0,1.8)}
+ /* ② 쓰러진 상자 */
+ {const g=new THREE.Group(),cb=mat(0xb58a55),gb=B(.7,.6,.6);
+  [[0,.3,0,0],[.75,.3,.2,.5],[-.6,.3,-.1,-.3],[.2,.9,0,.2],[1.15,.3,-.5,1.1]].forEach(q=>add(g,gb,cb,q[0],q[1],q[2]).rotation.set(q[3]*.3,q[3],q[3]*.2));
+  add(g,B(.4,.01,.3),0xf3efe4,0,.61,.05);addObj(D[1],g,40,5.5,0,1.9)}
+ /* ③ 오래된 게시판 */
+ {const g=new THREE.Group(),fr=neon(0x3df5c4,0x2a2f38),bmt=new THREE.MeshBasicMaterial({map:boardTex(),color:0x777777});
+  add(g,B(.12,2.8,.12),0x3a3f4a,-1.45,1.4,0);add(g,B(.12,2.8,.12),0x3a3f4a,1.45,1.4,0);add(g,B(2.9,1.55,.1),0x2a2f38,0,1.95,-.06);
+  add(g,new THREE.PlaneGeometry(2.7,1.35),bmt,0,1.95,0);add(g,B(2.9,.05,.05),fr,0,2.74,.02);add(g,B(2.9,.05,.05),fr,0,1.16,.02);
+  lamp({t:.6,em:[[fr,1.4,0]],fn:k=>{bmt.color.setScalar(.47+.53*k)}});R.board={g};addObj(D[2],g,110,7,0,3.1)}
+ /* ④ 빛을 잃은 전구 */
+ {const g=new THREE.Group(),bm=mat(0x6c6a63,{emissive:0xffd54f,emissiveIntensity:0,roughness:.35}),pl=new THREE.PointLight(0xffd27a,0,10,2);
+  add(g,CY(.05,.06,3.3,6),0x333840,0,1.65,0);add(g,B(1,.05,.05),0x333840,.48,3.3,0);add(g,CY(.015,.015,.3,4),0x555a60,.95,3.13,0);add(g,CY(.1,.12,.16,8),0x8a8f98,.95,3.02,0);add(g,SP(.26,12),bm,.95,2.8,0);
+  const bh=halo(g,0xffd27a,2.8,.95,2.8,0,0),bpm=pool(g,0xffcf80,3.2,.95,0);pl.position.set(.95,2.6,.4);g.add(pl);R.bulb={bm,bh,bpm,pl};addObj(D[3],g,175,5.5,0,3.6)}
+ /* ⑤ 버려진 의자 */
+ {const g=new THREE.Group(),ch=new THREE.Group(),wd=mat(0x7a4f2a),nt=hmap(panelTex('NOTICE',['잠시 쉬어가세요.','필요한 사람이 먼저','앉을 수 있도록!'],'#ffb340'),.35);
+  g.add(ch);add(ch,B(.95,.08,.9),wd,0,.6,0);add(ch,B(.95,.8,.08),wd,0,1,-.42);[[-.4,-.38],[.4,-.38],[-.4,.38],[.4,.38]].forEach(q=>add(ch,B(.07,.6,.07),0x3a3f4a,q[0],.3,q[1]));ch.rotation.z=.12;
+  add(g,new THREE.PlaneGeometry(1.2,.6),nt,0,1.85,-.3);lamp({t:1,fn:k=>{ch.rotation.z=.12*(1-k);nt.opacity=.35+.6*k}});addObj(D[4],g,250,6,0,2.45)}
+ dust(200,0x8f86a0,44,14,false);dust(110,0xffd27a,40,12,true);unfog();view(-15,.03)};
+
+/* ================= 연출 : 챕터 2 ================= */
+FX.binUp=()=>{SFX.item();const b=R.bin;if(!GL||!b)return;b.up=true;b.bs.emissive.setHex(0x3df5c4);b.bs.emissiveIntensity=1.3;
+ tween(1,e=>{b.bb.rotation.z=-Math.PI/2*(1-e);b.bb.position.set(-.55*(1-e),.42*(1-e),0)});
+ tween(.8,e=>{b.tr.scale.setScalar(Math.max(.001,1-e));if(e>=1)b.tr.visible=false},.7)};
+FX.replay=()=>{glitch();document.body.classList.add('past');showRec('ARCHIVE PLAYBACK · 동래시장 기록');$('goal').classList.add('hide');   // 목표 표시와 겹치지 않게 잠시 숨김
+ if(GL&&R.replay){R.replay.visible=true;setPower(1,true)}};
+FX.replayOff=()=>{glitch();document.body.classList.remove('past');hideRec();if(GL&&R.replay){R.replay.visible=false;setPower(S.next/5,true)}};
+FX.board=()=>{SFX.item();const b=R.board;if(!GL||!b)return;addTag('LINK','공동체 연결률 3% → 37%',wpos(b.g,0,.65,.4),'',7000);burst(b.g,0x3df5c4,24,0,1.95,.3,2.2,1)};
+FX.bulb=()=>{SFX.power();const b=R.bulb;if(!GL||!b)return;b.bm.color.setHex(0xfff3b0);
+ tween(1.4,e=>{const k=e<.8?(Math.random()<.5?1:.08):1;b.bm.emissiveIntensity=1.8*k;b.bh.material.opacity=.9*k;b.bpm.opacity=.55*k;b.pl.intensity=2*k})};
+</script>
  
 
