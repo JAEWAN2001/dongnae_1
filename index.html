@@ -1058,5 +1058,7 @@ function boot(){const go=$('go');let ok=false;try{ok=initGL()}catch(e){console.w
  (GL?fontsReady():Promise.resolve()).then(fin,fin);setTimeout(fin,4000)}
 $('go').addEventListener('click',()=>{if(GL){tyaw=0;tpitch=.03}});   // 시작하면 도시 코어 쪽으로 시선 이동
 </script>
+
+boot()
  
 
