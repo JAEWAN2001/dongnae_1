@@ -1059,6 +1059,165 @@ function boot(){const go=$('go');let ok=false;try{ok=initGL()}catch(e){console.w
 $('go').addEventListener('click',()=>{if(GL){tyaw=0;tpitch=.03}});   // 시작하면 도시 코어 쪽으로 시선 이동
 </script>
 
- 
+ <script>
+'use strict';
+/* ===== PART 3-B-1 : 장면 공용 소품 · 중앙 광장(프롤로그·엔딩) 장면 · 프롤로그/엔딩 연출 ===== */
+
+/* ---------- 공용 도우미 ---------- */
+function neon(c,base){return mat(base||0x1b1f27,{emissive:c,emissiveIntensity:0,roughness:.45})}   // 꺼져 있다가 복구되면 빛나는 재질
+function hf(c,op,wire){const m=holo(c,op,wire);m.fog=false;return m}                             // 스모그를 뚫고 보이는 홀로그램
+function unfog(){world.traverse(o=>{const m=o.material;if(m)(Array.isArray(m)?m:[m]).forEach(x=>{if(x.blending===THREE.AdditiveBlending)x.fog=false})})}
+function tween(d,fn,delay){const t0=performance.now()+(delay||0)*1000,dur=RM?1:d*1000;
+ anims.push(()=>{const n=performance.now();if(n<t0)return 0;const e=Math.min(1,(n-t0)/dur);fn(1-Math.pow(1-e,3));return e>=1?1:0})}
+function wpos(o,x,y,z){o.updateWorldMatrix(true,false);return o.localToWorld(new THREE.Vector3(x||0,y||0,z||0))}
+function wxz(deg,r){return [Math.sin(deg*DEG)*r,-Math.cos(deg*DEG)*r]}
+function stripeTex(){return canvasTex(64,16,(x,w,h)=>{x.fillStyle='#ffc93c';x.fillRect(0,0,w,h);x.fillStyle='#16181c';
+ for(let i=-16;i<w;i+=16){x.beginPath();x.moveTo(i,h);x.lineTo(i+8,0);x.lineTo(i+16,0);x.lineTo(i+8,h);x.fill()}})}
+
+/* ---------- 과거 기록 홀로그램 인물 (pose: stand · bend · carry · pair) ---------- */
+function ghost(p,x,z,ry,pose,m){const g=new THREE.Group();g.position.set(x,0,z);g.rotation.y=ry;
+ add(g,B(.13,.66,.15),m,-.09,.33,0);add(g,B(.13,.66,.15),m,.09,.33,0);
+ const up=new THREE.Group();up.position.y=.66;up.rotation.x=pose==='bend'?.6:0;g.add(up);
+ add(up,CY(.17,.21,.74,6),m,0,.37,0);add(up,IC(.16),m,0,.92,0);
+ [-1,1].forEach(s=>{const a=new THREE.Group();a.position.set(s*.25,.68,0);up.add(a);add(a,B(.09,.58,.09),m,0,-.29,0);
+  a.rotation.x=(pose==='carry'||pose==='pair')?-1.25:pose==='bend'?(s>0?-.95:-.35):0});
+ if(pose==='carry')add(up,B(.5,.4,.5),m,0,.5,.62);
+ add(g,new THREE.RingGeometry(.42,.5,24),m,0,.02,0).rotation.x=-Math.PI/2;p.add(g);return g}
+
+/* ---------- 도시 소품 ---------- */
+function tower(p,deg,r,w,h,d,gi){const g=new THREE.Group(),geo=B(w,h,d),rf=mat(0x181b22);uvBox(geo,w,h,d);
+ const m=new THREE.Mesh(geo,[WM[gi],WM[gi],rf,rf,WM[gi],WM[gi]]);m.position.y=h/2;g.add(m);
+ add(g,B(w*.45,.9,d*.45),0x272b33,0,h+.45,0);add(g,CY(.05,.05,3.2,4),0x3c424e,w*.3,h+1.6,d*.2);beacon(g,w*.3,h+3.25,d*.2,1);
+ p.add(at(g,deg,r));return g}
+function pole(p,deg,r,h,t){const g=new THREE.Group();add(g,CY(.05,.07,h,6),0x3a3f4a,0,h/2,0);add(g,B(.22,.14,.22),0x2a2f38,0,h,0);beacon(g,0,h+.16,0,t);p.add(at(g,deg,r));return g}
+function barrier(p,deg,r,sm){const g=new THREE.Group();add(g,B(1.7,.3,.08),sm,0,.8,0);
+ [-.72,.72].forEach(x=>{add(g,B(.07,.82,.07),0x2b2f36,x,.41,0);add(g,B(.42,.05,.3),0x2b2f36,x,.03,0)});beacon(g,-.72,.98,0,1);p.add(at(g,deg,r));return g}
+function debris(n,r0,r1,t){const g=new THREE.Group(),G=[B(.34,.02,.44),CY(.06,.06,.2,6),IC(.13),B(.3,.16,.22)],Y=[.02,.06,.08,.08],C=[0xbdb6a6,0x7f9aaf,0x9c7a50,0x5d6670,0xc9c2b0];world.add(g);
+ for(let i=0;i<n;i++){const a=Math.random()*6.283,r=r0+Math.random()*(r1-r0),k=i%4,o=add(g,G[k],C[i%5],Math.sin(a)*r,Y[k],-Math.cos(a)*r);o.rotation.set(k===1?Math.PI/2:0,Math.random()*6.283,0)}
+ if(t)lamp({t,hide:[g]});return g}                                                               // 복구되면 쓰레기가 치워진다
+function drone(p,y,r,sp,ph){const g=new THREE.Group(),pm=hf(0xbfefff,.3);add(g,B(.55,.12,.55),0x2b303a);
+ [[-.36,-.36],[.36,-.36],[-.36,.36],[.36,.36]].forEach(q=>{add(g,new THREE.CircleGeometry(.17,12),pm,q[0],.08,q[1]).rotation.x=-Math.PI/2});
+ halo(g,0x3df5c4,.7,0,-.12,0,.9);p.add(g);
+ anims.push(tm=>{const a=tm*sp+ph;g.position.set(Math.sin(a)*r,y+Math.sin(tm*1.4+ph)*.35,-Math.cos(a)*r);g.rotation.y=-a});return g}
+
+/* 순환 고가 자기부상 철로 : 오른쪽(90°~) 구간이 끊어져 있고, 완전 복구되면 홀로그램 다리가 이어진다 */
+function railLoop(p,r,y,gapDeg){const gap=gapDeg*DEG,st=mat(0x3b414c,{metalness:.5,roughness:.5});
+ add(p,new THREE.TorusGeometry(r,.38,4,120,Math.PI*2-gap),st,0,y,0).rotation.x=-Math.PI/2;
+ const sm=neon(0x66ccff);add(p,new THREE.TorusGeometry(r,.06,3,120,Math.PI*2-gap),sm,0,y+.42,0).rotation.x=-Math.PI/2;
+ const bm=hf(0x3df5c4,0);add(p,new THREE.TorusGeometry(r,.38,4,16,gap),bm,0,y,0).rotation.set(-Math.PI/2,0,Math.PI*2-gap);
+ lamp({t:.8,em:[[sm,1.5,0]]});lamp({t:1,op:[[bm,.5]]});
+ const gp=B(1.3,.3,.9),gc=CY(.3,.4,y-.3,6),pm=mat(0x30353f);
+ for(let d=0;d<360;d+=15){if(d>86&&d<94+gapDeg)continue;const pl=new THREE.Group();add(pl,gc,pm,0,(y-.3)/2,0);add(pl,gp,pm,0,y-.3,0);p.add(at(pl,d,r))}
+ const dg=new THREE.Group();add(dg,B(4.4,.46,1),st,1.7,y-1.3,0).rotation.z=-.62;p.add(at(dg,90,r));lamp({t:1,hide:[dg]})}
+function train(p,r,y,start){const wh=mat(0xcfd6e0,{roughness:.4,metalness:.3}),win=neon(0x9fdcff,0x16202b),cars=[],dA=5.35/r/DEG;let hl=null;
+ for(let i=0;i<3;i++){const g=new THREE.Group();add(g,B(5,1.15,1.35),wh);add(g,B(4.6,.36,1.38),win,0,.16,0);
+  if(!i){add(g,new THREE.CylinderGeometry(.02,.68,1.5,4,1),wh,3.25,0,0).rotation.set(Math.PI/4,0,-Math.PI/2);hl=halo(g,0xffffff,1.8,4,0,0,0)}
+  p.add(g);cars.push(g)}
+ lamp({t:1,em:[[win,1.6,0]],op:[[hl.material,.9]]});let ph=start;
+ anims.push((tm,dt)=>{if(PW.lv>=.999)ph+=dt*11;for(let i=0;i<3;i++)at(cars[i],ph-i*dA,r,y)});return cars}
+
+/* 중앙 홀로그램 지도 : 프롤로그에서 기록이 남은 네 곳을 표시 */
+function cityMap(p,deg,r){const g=new THREE.Group();add(g,CY(.7,.95,1,8),0x2a2f3a,0,.5,0);add(g,CY(1.42,1.42,.1,32),0x161a22,0,1.05,0);
+ const rim=neon(0x3df5c4);add(g,CY(1.45,1.45,.04,32),rim,0,1.1,0);lamp({t:.2,em:[[rim,1.4,0]]});
+ const ns=hf(0xff3d5a,.6),nr=add(g,new THREE.RingGeometry(.45,.6,32),ns,0,1.14,0);nr.rotation.x=-Math.PI/2;   // NO SIGNAL
+ const m=new THREE.Group();m.position.y=1.16;m.visible=false;g.add(m);
+ const grid=new THREE.GridHelper(2.6,12,0x3df5c4,0x3df5c4);Object.assign(grid.material,{transparent:true,opacity:.28,blending:THREE.AdditiveBlending,depthWrite:false});m.add(grid);
+ const bw=hf(0x3df5c4,.45,true),gb=B(1,1,1);
+ for(let i=0;i<16;i++){const h=.12+Math.random()*.42;add(m,gb,bw,(Math.random()-.5)*2.2,h/2,(Math.random()-.5)*2.2).scale.set(.16,h,.16)}
+ const rv=hf(0x66ccff,.8),pt=[[-1.25,.95],[-.6,.72],[0,.85],[.6,.5],[1.25,.62]];                     // 온천천
+ for(let i=0;i<4;i++){const a=pt[i],b=pt[i+1];add(m,B(Math.hypot(b[0]-a[0],b[1]-a[1]),.02,.08),rv,(a[0]+b[0])/2,.02,(a[1]+b[1])/2).rotation.y=-Math.atan2(b[1]-a[1],b[0]-a[0])}
+ const pins=[['01','동래읍성',-1.05,-.6,1.05,0x3df5c4],['02','동래시장',.95,-.4,.75,0x3df5c4],['03','온천천',-.45,.62,.42,0x66ccff],['??','UNKNOWN',.3,.05,1.4,0xff3d5a]].map(q=>{
+  const pm=hf(q[5],.9);add(m,CY(.014,.014,q[4],4),pm,q[2],q[4]/2,q[3]);const top=add(m,new THREE.OctahedronGeometry(.075),pm,q[2],q[4]+.08,q[3]);
+  add(m,new THREE.RingGeometry(.07,.11,16),pm,q[2],.03,q[3]).rotation.x=-Math.PI/2;return {em:q[0],name:q[1],top,pm,unk:q[0]==='??'}});
+ const M={g,map:m,nr,pins,on:false};
+ anims.push(tm=>{if(nr.visible)ns.opacity=Math.sin(tm*5)>0?.75:.12;if(!m.visible)return;
+  pins.forEach((q,i)=>{q.top.rotation.y=tm*2+i;q.top.scale.setScalar(q.unk&&!M.on?1+.4*Math.abs(Math.sin(tm*4)):1)})});
+ p.add(at(g,deg,r));return M}
+
+/* ================= 장면 -1 : DONGNAE CITY 중앙 광장 (시작 화면 · 프롤로그 · 엔딩) ================= */
+SCN[-1]=function(){resetWorld(PAL.plaza);const W=world;
+ /* 바닥 : 갈라진 광장 + 꺼진 LED 링 */
+ add(W,CY(80,80,.2,40),0x1a1d23,0,-.1,0);
+ add(W,new THREE.RingGeometry(2.6,9.3,56),0x242830,0,.012,0).rotation.x=-Math.PI/2;
+ const led=neon(0x3df5c4);add(W,new THREE.RingGeometry(9.3,9.5,72),led,0,.02,0).rotation.x=-Math.PI/2;lamp({t:.4,em:[[led,1.5,0]]});
+ const ck=mat(0x0b0d11);for(let i=0;i<10;i++){const a=Math.random()*6.283,r=3+Math.random()*5.8;add(W,B(.05,.02,1+Math.random()*1.8),ck,Math.sin(a)*r,.03,-Math.cos(a)*r).rotation.y=Math.random()*3.14}
+ const [hx,hz]=wxz(153,7.6);add(W,new THREE.CircleGeometry(1.1,16),0x07080a,hx,.025,hz).rotation.x=-Math.PI/2;
+
+ /* 도시 코어 : 스모그 속에서 붉은 비상 윤곽만 보이다가, 복구되면 민트빛 링이 돈다 */
+ const core=new THREE.Group(),cg=kmat('coreGlass',{color:0x1e2532,roughness:.35,metalness:.6});
+ add(core,B(7,2.2,7),0x23262e,0,1.1,0);add(core,CY(2.2,2.2,26,6),cg,0,15.2,0).rotation.y=Math.PI/6;
+ add(core,CY(1.3,1.9,5,6),0x2a303c,0,30.7,0);add(core,CO(.75,6,6),0x2a303c,0,36.2,0);beacon(core,0,39.4,0,1);
+ const em=hf(0xff3d5a,.3),gE=B(.14,26,.14);for(let k=0;k<6;k++){const a=(30+k*60)*DEG;add(core,gE,em,Math.sin(a)*2.2,15.2,Math.cos(a)*2.2)}
+ const rings=[[9,3.9],[17,3.4],[25,2.9]].map((q,i)=>{const m=hf(0xff3d5a,.45),o=add(core,new THREE.TorusGeometry(q[1],.1,6,56,Math.PI*1.55),m,0,q[0],0);
+  o.rotation.set(Math.PI/2+(i===1?.38:0),i===1?.25:0,i*2);return {o,m}});
+ const bm=hf(0x3df5c4,0);add(core,new THREE.CylinderGeometry(.5,1.6,90,12,1,true),bm,0,84.4,0);lamp({t:1,op:[[bm,.18]]});
+ anims.push((tm,dt)=>{const on=PW.lv>=.999;em.color.setHex(on?0x3df5c4:PW.lv>=.5?0xffb340:0xff3d5a);em.opacity=on?.85:(Math.random()<.06?.05:.28);
+  rings.forEach((r,i)=>{r.m.color.setHex(on?0x3df5c4:0xff3d5a);r.m.opacity=on?.8:(Math.random()<.07?.06:.42);
+   if(on){r.o.rotation.z+=dt*(.5+i*.3)*(i%2?-1:1);r.o.rotation.x+=(Math.PI/2-r.o.rotation.x)*Math.min(1,dt*1.5);r.o.rotation.y*=Math.max(0,1-dt*1.5)}})});
+ W.add(at(core,0,24));
+
+ /* 끊어진 고가 철로 + 멈춘 열차 · 주변 건물 · 스카이라인 · 광고판 */
+ railLoop(W,18,7.5,22);train(W,18,8.5,76);
+ [[-150,15,5,13,3.6,3],[-115,14.5,6,9,3.6,4],[-82,15,4,11,3.6,2],[82,15,4,9.5,3.6,3],[112,14.5,5,12,3.6,0],[138,15,5,8,3.6,1],[188,15,6,10.5,3.6,2]].forEach(q=>tower(W,...q));
+ skyline(W,22,30,56,12,42,5);
+ billboard(W,-58,15.5,5.2,4.6,2.3,['SYSTEM ERROR','도시 기능률 17%'],['DONGNAE CITY','도시 기능 정상화'],1);
+ billboard(W,48,15.5,5.2,4.6,2.3,['LINK LOST','공동체 연결망 OFF'],['COMMUNITY','공동체 연결망 ON'],.6);
+ billboard(W,163,15.5,5,4.4,2.2,['DATA LOST','공공 유지 기록 78% 손실'],['RECORDS','공공 유지 기록 복구'],.8);
+
+ /* 광장 소품 : 가로등 · 경보등 · 통제선 · 추락한 드론 · 쓰레기 */
+ for(let i=0;i<8;i++)streetLamp(W,22.5+i*45,10,[.2,.4,.6,.8][i%4]);
+ pole(W,-18,12.5,6,1);pole(W,28,12.5,5,1);pole(W,222,12.5,6.5,1);
+ const stp=new THREE.MeshStandardMaterial({map:stripeTex(),roughness:.7});barrier(W,146,6.7,stp);barrier(W,160,6.7,stp);
+ const wreck=new THREE.Group();add(wreck,B(.62,.14,.62),0x2b303a,0,.14,0).rotation.z=.42;add(wreck,B(.5,.04,.08),0x2b303a,.42,.04,.3).rotation.y=.7;
+ const spk=halo(wreck,0xffa040,.7,.12,.3,0,0);anims.push(()=>{spk.material.opacity=Math.random()<.12?.9:0});W.add(at(wreck,118,5.4));lamp({t:1,hide:[wreck]});
+ debris(22,3,9,1);
+ R.map=cityMap(W,0,5.2);
+
+ /* 현재 : 짐을 들기 힘들어하는 사람, 그리고 그냥 지나치는 사람들 */
+ const [ex,ez]=wxz(-35,6.5),eld=person(W,{still:true,t:1,col:0x9a7b62,pos:[ex,ez,35*DEG]});eld.neck.remove(eld.phone);
+ const cb=mat(0x9c7a50),spill=new THREE.Group();W.add(spill);lamp({t:1,hide:[spill]});
+ [[.55,.2,.1,.3],[.15,.2,.68,1.1],[-.5,.17,.5,.5],[.9,.15,.62,0]].forEach(q=>{add(spill,B(.5,.4,.42),cb,ex+q[0],q[1],ez+q[2]).rotation.set(0,q[3],q[0]>.8?Math.PI/2:0)});
+ [[[-9,-7.6,8.5,-8.6],1.1,.6],[[-7.6,3.2,-6.2,-8.2],1,.8],[[7.2,4.6,6.1,-7.4],1.2,1],[[-8.5,6.4,8.2,7.2],.9,.8]].forEach(q=>person(W,{path:q[0],v:q[1],t:q[2]}));
+ person(W,{r:8.9,v:.9,dir:-1,t:1});
+
+ /* 과거 기록 영상 (FX.past 동안만 보임) : 함께 줍고, 나르고, 치우던 사람들 */
+ const past=new THREE.Group(),gm=hf(0xffc070,.5);past.visible=false;W.add(past);
+ ghost(past,ex+.75,ez+.8,Math.atan2(-.75,-.8),'bend',gm);ghost(past,ex-.6,ez+1,Math.atan2(.1,-.55),'bend',gm);
+ const [cx,cz]=wxz(24,7);ghost(past,cx,cz-.45,Math.PI/2,'pair',gm);ghost(past,cx,cz+.45,Math.PI/2,'pair',gm);add(past,B(.55,.42,1.35),gm,cx+.6,1.16,cz);
+ const [tx,tz]=wxz(-80,7);ghost(past,tx,tz,1.2,'bend',gm);add(past,IC(.24),gm,tx+.45,.24,tz+.25);
+ const [sx,sz]=wxz(62,6.4);ghost(past,sx,sz,-2.3,'bend',gm);
+ anims.push(tm=>{if(past.visible)gm.opacity=.42+.1*Math.sin(tm*8)-(Math.random()<.05?.25:0)});R.past=past;
+
+ /* 완전 복구 : 자원봉사자가 나타나고, 드론이 다시 난다 */
+ const vol=new THREE.Group();W.add(vol);lamp({t:1,vis:[vol]});
+ const v1=person(vol,{still:true,t:1,col:0x3df5c4,pos:[ex+.75,ez+.8,Math.atan2(-.75,-.8)]});add(v1.g,B(.46,.36,.4),cb,0,1.02,.36);
+ const [bx,bz]=wxz(110,5.8),v2=person(vol,{still:true,t:1,col:0x3df5c4,pos:[bx,bz,-1.6]});add(v2.g,B(.04,1.4,.04),0x8a6a40,.26,.72,.32).rotation.x=.45;
+ const dr=new THREE.Group();W.add(dr);lamp({t:1,vis:[dr]});[[12,9,.32,0],[14,12,-.25,2],[11.5,13.5,.2,4],[15,8,-.4,1]].forEach(q=>drone(dr,...q));
+
+ /* 엔딩 : 「자원봉사」 홀로그램 */
+ const wm=new THREE.MeshBasicMaterial({map:wordTex(),transparent:true,opacity:0,blending:THREE.AdditiveBlending,depthWrite:false,side:THREE.DoubleSide,fog:false});
+ const word=add(W,new THREE.PlaneGeometry(10,5),wm,0,11.5,-16);word.visible=false;R.word=word;R.wordMat=wm;
+ anims.push(tm=>{if(word.visible)word.position.y=11.5+Math.sin(tm*.8)*.15});
+
+ dust(260,0x8e8984,44,16,false);dust(140,0x3df5c4,40,14,true);unfog()};
+
+/* ================= 연출 효과 : 공통 · 프롤로그 · 엔딩 ================= */
+FX.alarm=()=>{$('alarm').classList.remove('hide');document.body.classList.add('alert');SFX.alarm()};
+FX.alarmOff=()=>{$('alarm').classList.add('hide');document.body.classList.remove('alert')};
+FX.online=()=>{$('agent').classList.add('on');$('agentTxt').textContent='LINK ONLINE · 조사요원';SFX.item()};
+FX.past=()=>{glitch();document.body.classList.add('past');showRec('ARCHIVE PLAYBACK · 과거 기록 영상');      // 과거: 도시가 살아 있던 모습
+ if(GL&&R.past){R.past.visible=true;setPower(1,true);tyaw=.45;tpitch=0}};
+FX.present=()=>{glitch();document.body.classList.remove('past');showRec('LIVE · 현재 동래구',true);            // 현재: 다시 붕괴 상태로
+ if(GL&&R.past){R.past.visible=false;setPower(0,true)}};
+FX.sites=()=>{hideRec();SFX.item();const M=R.map;if(!GL||!M)return;M.map.visible=true;M.nr.visible=false;tyaw=0;tpitch=.16;
+ const vs=M.pins.map(q=>wpos(q.top,0,.16,0)),sc=world;M.map.scale.y=.02;tween(.7,e=>{M.map.scale.y=.02+.98*e});
+ M.pins.forEach((q,i)=>setTimeout(()=>{if(world===sc)addTag(q.em,q.name,vs[i],q.unk?'unk':'')},350+i*260))};
+FX.timer=()=>{hideRec();document.body.classList.remove('past');S.running=true;updTimer();SFX.power()};
+FX.restore=()=>{glitch();SFX.power();hideRec();FX.alarmOff();document.body.classList.remove('past');
+ $('place').textContent='DONGNAE CITY · 중앙 광장';buildScene(-1);                                             // 엔딩은 첫 장소로 돌아온다
+ const M=R.map;if(!GL||!M||!R.word)return;M.on=true;M.map.visible=true;M.nr.visible=false;M.pins.forEach(q=>q.pm.color.setHex(0x3df5c4));
+ PW.rate=.32;setPower(1);yaw=.9;pitch=0;tyaw=0;tpitch=.26;R.word.visible=true;tween(2.2,e=>{R.wordMat.opacity=e},2.2)};
+FX.end=()=>{finish();return 'wait'};
+</script>
  
 
