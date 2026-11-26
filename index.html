@@ -276,6 +276,7 @@ body.nogl .lbl::after{display:none}
  <button class="btn" id="retry2" type="button">다시 플레이</button>
 </div></div>
 
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 
 <script>
 'use strict';
@@ -844,4 +845,218 @@ $('go').addEventListener('click',()=>{const g=$('go');if(g.disabled)return;g.dis
  $('place').textContent='DONGNAE CITY · 중앙 광장';run(PROLOGUE,()=>{S.ch=0;enterChapter()})});
 </script>
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+'use strict';
+/* ===== PART 3-A : 3D 엔진 코어 · 전력(복구) 시스템 · 공용 소품 · 이름표 · 입력 · 렌더 루프 ===== */
+var FX={},SCN={},R={},autoSpin=true;
+let renderer=null,scene=null,camera=null,hemi=null,sun=null,skyMat=null,world=null,haloTex=null,HITM=null,TMP=null,V=null,ray=null,mv=null;
+let yaw=.5,pitch=-.03,tyaw=null,tpitch=null,vyaw=0,pd=null,sceneN=-1,looping=false,booted=false,lastT=0,fAcc=0,fN=0,lowQ=false,arL=null,arR=null;
+let anims=[],lamps=[],walkers=[],tags=[],lblEls=[],sceneTex=[];
+const PW={lv:0,tg:0,rate:.7,pal:null},MC={},WM=[];
+const clamp=(v,a,b)=>v<a?a:v>b?b:v,lerp=(p,e)=>p[0]+(p[1]-p[0])*e,DEG=Math.PI/180;
+const WCOL=[0x3df5c4,0xff8a5c,0x66ccff,0xffd166,0xc39bff,0xef6f8a],SKIN=0xd9a37e,GRAY=0x2e333e;
+
+/* 장면별 팔레트 [붕괴, 복구] — 복구율(0→1)에 따라 하늘·안개·조명이 보간된다 */
+const PAL={
+ plaza: {top:[0x06050b,0x24508a],bot:[0x3b2721,0xffbe92],hs:[0x9a8fb0,0xfff1e2],hg:[0x3a2a22,0x56606a],hi:[1.2,1.5],sc:[0xff9a66,0xffe2c0],si:[.5,1],fog:[[9,26],[46,105]]},
+ fort:  {top:[0x0a0608,0x1f3f6b],bot:[0x4a2517,0xf6a46c],hs:[0xb09590,0xffe8d4],hg:[0x3a2418,0x5a5648],hi:[1.25,1.5],sc:[0xff8a4a,0xffd6a0],si:[.55,1],fog:[[10,26],[46,105]]},
+ market:{top:[0x07060e,0x120d30],bot:[0x2b1f3d,0x5c3478],hs:[0x8f88c0,0xe2d6ff],hg:[0x2a1e36,0x4a3a5c],hi:[1.2,1.4],sc:[0xa080ff,0xffc8ea],si:[.45,.75],fog:[[9,24],[42,85]]},
+ stream:{top:[0x090e0b,0x3c7cc6],bot:[0x33402a,0xcbe7fb],hs:[0x9aa684,0xf0f8ff],hg:[0x2a321e,0x66805a],hi:[1.2,1.55],sc:[0xd8dc8a,0xfff6e0],si:[.5,1.15],fog:[[10,28],[46,115]]},
+ center:{top:[0x120507,0x7a8798],bot:[0x2a0b0f,0xc9d4df],hs:[0xc07080,0xffffff],hg:[0x3a1416,0x9aa6b6],hi:[1,1.5],sc:[0xff5060,0xfff8f0],si:[.4,.8],fog:[[14,30],[44,80]]}
+};
+
+/* ---------- 초기화 (WebGL이 안 되면 목록형 화면으로 전환) ---------- */
+function initGL(){if(typeof THREE==='undefined')throw new Error('three.js 로드 실패');
+ const cv=$('c');renderer=new THREE.WebGLRenderer({canvas:cv,antialias:true,powerPreference:'high-performance'});
+ renderer.setPixelRatio(Math.min(1.75,window.devicePixelRatio||1));
+ scene=new THREE.Scene();scene.fog=new THREE.Fog(0,10,50);
+ camera=new THREE.PerspectiveCamera(66,1,.1,240);camera.position.set(0,1.7,0);camera.rotation.order='YXZ';
+ hemi=new THREE.HemisphereLight(0xffffff,0x333333,1);scene.add(hemi);
+ sun=new THREE.DirectionalLight(0xffffff,.6);sun.position.set(-10,16,8);scene.add(sun);
+ skyMat=new THREE.ShaderMaterial({side:THREE.BackSide,depthWrite:false,uniforms:{top:{value:new THREE.Color()},bot:{value:new THREE.Color()}},
+  vertexShader:'varying float vh;void main(){vh=normalize(position).y;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);}',
+  fragmentShader:'uniform vec3 top;uniform vec3 bot;varying float vh;void main(){gl_FragColor=vec4(mix(bot,top,smoothstep(-0.02,0.6,vh)),1.0);}'});
+ const sky=new THREE.Mesh(new THREE.SphereGeometry(170,24,12),skyMat);sky.renderOrder=-1;sky.frustumCulled=false;scene.add(sky);
+ TMP=new THREE.Color();V=new THREE.Vector3();ray=new THREE.Raycaster();mv=new THREE.Vector2();
+ HITM=new THREE.MeshBasicMaterial({visible:false});HITM.userData.keep=true;
+ haloTex=canvasTex(64,64,x=>{const g=x.createRadialGradient(32,32,0,32,32,32);[[0,1],[.22,.55],[.55,.12],[1,0]].forEach(s=>g.addColorStop(s[0],'rgba(255,255,255,'+s[1]+')'));x.fillStyle=g;x.fillRect(0,0,64,64)},true);
+ const facade=canvasTex(64,128,x=>{x.fillStyle='#272c37';x.fillRect(0,0,64,128);for(let j=0;j<8;j++)for(let i=0;i<4;i++){x.fillStyle='#141821';x.fillRect(4+i*15,5+j*15.5,10,9);x.fillStyle='#34405a';x.fillRect(4+i*15,5+j*15.5,10,2)}},true);
+ for(let k=0;k<5;k++){let s=(k+3)*7919;const rn=()=>(s=s*16807%2147483647)/2147483647;   // 창문 5개 그룹 = 복구 5단계
+  const lit=canvasTex(64,128,x=>{x.fillStyle='#000';x.fillRect(0,0,64,128);for(let j=0;j<8;j++)for(let i=0;i<4;i++)if(rn()<.62){x.fillStyle=rn()<.3?'#9fdcff':'#ffcf7a';x.fillRect(4+i*15,5+j*15.5,10,9)}},true);
+  const m=new THREE.MeshStandardMaterial({color:0xffffff,map:facade,emissive:0xffffff,emissiveMap:lit,emissiveIntensity:0,roughness:.7,metalness:.2,flatShading:true});m.userData.keep=true;WM.push(m)}
+ bindInput(cv);GL=true;document.body.classList.remove('nogl');resize();return true}
+function toNoGL(){const was=GL;GL=false;document.body.classList.add('nogl');$('loadErr').classList.remove('hide');$('arrowL').classList.add('hide');$('arrowR').classList.add('hide');
+ if(sceneN>=0&&sceneN<CH.length){objs=CH[sceneN].objs.map(def=>({def,g:null}));makeLabels()}
+ if(was&&$('start').classList.contains('hide'))toast('3D 화면 오류 · 목록형 화면으로 전환')}
+
+/* ---------- 재질 · 도형 · 텍스처 도우미 ---------- */
+function mat(c,o){if(!o&&MC[c])return MC[c];const m=new THREE.MeshStandardMaterial(Object.assign({color:c,flatShading:true,roughness:.82,metalness:.08},o||{}));if(!o){m.userData.keep=true;MC[c]=m}return m}
+function kmat(k,o){if(!MC[k]){MC[k]=new THREE.MeshStandardMaterial(Object.assign({flatShading:true,roughness:.8,metalness:.05},o));MC[k].userData.keep=true}return MC[k]}
+function glow(c,i){return mat(c,{emissive:c,emissiveIntensity:i==null?1:i})}
+function holo(c,op,wire){return new THREE.MeshBasicMaterial({color:c,transparent:true,opacity:op==null?.5:op,blending:THREE.AdditiveBlending,depthWrite:false,side:THREE.DoubleSide,wireframe:!!wire})}
+const B=(w,h,d)=>new THREE.BoxGeometry(w,h,d),CY=(a,b,h,s)=>new THREE.CylinderGeometry(a,b,h,s||8),CO=(r,h,s)=>new THREE.ConeGeometry(r,h,s||6),IC=(r,d)=>new THREE.IcosahedronGeometry(r,d||0),SP=(r,s)=>new THREE.SphereGeometry(r,s||8,Math.max(4,(s||8)-2));
+function add(p,geo,m,x,y,z){const o=new THREE.Mesh(geo,typeof m==='number'?mat(m):m);o.position.set(x||0,y||0,z||0);p.add(o);return o}
+function at(g,deg,r,y){const a=deg*DEG;g.position.set(Math.sin(a)*r,y||0,-Math.cos(a)*r);g.rotation.y=-a;return g}   // +Z 면이 카메라(중심)를 향함
+function ring(n,fn){for(let i=0;i<n;i++)fn(i,i/n*360)}
+function canvasTex(w,h,draw,keep){const c=document.createElement('canvas');c.width=w;c.height=h;draw(c.getContext('2d'),w,h);const t=new THREE.CanvasTexture(c);if(keep)t.wrapS=t.wrapT=THREE.RepeatWrapping;else sceneTex.push(t);return t}
+function halo(p,c,s,x,y,z,op){const sp=new THREE.Sprite(new THREE.SpriteMaterial({map:haloTex,color:c,transparent:true,opacity:op==null?.85:op,blending:THREE.AdditiveBlending,depthWrite:false}));sp.scale.set(s,s,1);sp.position.set(x||0,y||0,z||0);p.add(sp);return sp}
+function pool(p,c,r,x,z){const m=new THREE.MeshBasicMaterial({map:haloTex,color:c,transparent:true,opacity:0,blending:THREE.AdditiveBlending,depthWrite:false});const o=new THREE.Mesh(new THREE.CircleGeometry(r,20),m);o.rotation.x=-Math.PI/2;o.position.set(x||0,.05,z||0);p.add(o);return m}
+function bbTex(a,b,col){return canvasTex(256,128,x=>{x.strokeStyle=col;x.lineWidth=3;x.strokeRect(5,5,246,118);x.fillStyle=col;x.textAlign='center';x.textBaseline='middle';
+ x.font='700 38px "Chakra Petch","Arial Narrow",sans-serif';x.fillText(a,128,52,228);x.font='600 17px "Chakra Petch",sans-serif';x.fillText(b,128,94,228);
+ x.globalAlpha=.16;for(let y=0;y<128;y+=4)x.fillRect(0,y,256,1)})}
+function wordTex(){return canvasTex(512,256,x=>{x.textAlign='center';x.textBaseline='middle';x.shadowColor='#3df5c4';x.shadowBlur=30;x.fillStyle='#c6fff2';
+ x.font='900 128px "Noto Sans KR","Apple SD Gothic Neo","Malgun Gothic",sans-serif';x.fillText('자원봉사',256,110,492);
+ x.shadowBlur=12;x.fillStyle='#3df5c4';x.font='700 24px "Chakra Petch",sans-serif';x.fillText('VOLUNTEER · RECORDS RESTORED',256,214,480)})}
+
+/* ---------- 전력(복구) 시스템 : 문제를 풀 때마다 조명·창문·네온이 차례로 켜진다 ---------- */
+// lamp({t:임계값, em:[[재질,켜짐,꺼짐]], op:[[재질,불투명도]], vis:[켜지면 보임], hide:[켜지면 숨김], li:[조명,세기], fn, inv})
+function lamp(o){o.k=0;o.a=-1;lamps.push(o);return o}
+function lampApply(L,k){if(L.inv)k=1-k;
+ if(L.em)L.em.forEach(e=>{e[0].emissiveIntensity=(e[2]||0)+(e[1]-(e[2]||0))*k});
+ if(L.op)L.op.forEach(e=>{e[0].opacity=e[1]*k});
+ if(L.vis)L.vis.forEach(o=>{o.visible=k>.5});
+ if(L.hide)L.hide.forEach(o=>{o.visible=k<=.5});
+ if(L.li)L.li[0].intensity=L.li[1]*k;
+ if(L.fn)L.fn(k)}
+function setPower(v,snap){PW.tg=clamp(v,0,1);if(snap){PW.lv=PW.tg;lamps.forEach(L=>{L.k=PW.lv>=L.t-1e-4?1:0});applyPal()}}
+function updPower(dt){const d=PW.tg-PW.lv;if(Math.abs(d)>1e-4){PW.lv+=Math.sign(d)*Math.min(Math.abs(d),dt*PW.rate);applyPal()}
+ for(const L of lamps){const want=PW.lv>=L.t-1e-4?1:0;
+  if(L.k!==want){L.k+=(want-L.k)*Math.min(1,dt*(want?2.8:6));if(Math.abs(want-L.k)<.02)L.k=want}
+  let kk=L.k;if(want&&kk<1&&!RM&&Math.random()<.3)kk*=.12;            // 켜질 때 깜빡임
+  if(Math.abs(kk-L.a)>.002){L.a=kk;lampApply(L,kk)}}}
+function lc(c,a,e){c.setHex(a[0]).lerp(TMP.setHex(a[1]),e)}
+function applyPal(){const p=PW.pal;if(!p||!skyMat)return;const e=PW.lv;
+ lc(skyMat.uniforms.top.value,p.top,e);lc(skyMat.uniforms.bot.value,p.bot,e);scene.fog.color.copy(skyMat.uniforms.bot.value);
+ lc(hemi.color,p.hs,e);lc(hemi.groundColor,p.hg,e);hemi.intensity=lerp(p.hi,e);lc(sun.color,p.sc,e);sun.intensity=lerp(p.si,e);
+ scene.fog.near=lerp(p.fog[0],e);scene.fog.far=lerp(p.fog[1],e)}
+function fadeTo(o,k,v,d){const s=o[k],t0=performance.now(),dur=(RM?.05:d)*1000;anims.push(()=>{const e=Math.min(1,(performance.now()-t0)/dur);o[k]=s+(v-s)*(1-Math.pow(1-e,3));return e>=1?1:0})}
+
+/* ---------- 공용 소품 ---------- */
+function beacon(p,x,y,z,t,okCol){const h=halo(p,0xff2a40,1.5,x,y,z),ph=Math.random()*6;   // 경보등 → 복구되면 차분한 불빛
+ anims.push(tm=>{const on=PW.lv>=t;h.material.color.setHex(on?(okCol||0xbfefff):0xff2a40);h.material.opacity=on?.3+.18*Math.sin(tm*1.4+ph):(Math.sin(tm*4.2+ph)>0?.95:.06)});return h}
+function streetLamp(p,deg,r,t){const g=new THREE.Group();add(g,CY(.07,.1,4.2,6),0x3a3f4a,0,2.1,0);add(g,B(1.1,.1,.16),0x3a3f4a,.5,4.15,0);
+ const hm=glow(0xfff1d6,0);add(g,B(.5,.08,.22),hm,.95,4.06,0);const hl=halo(g,0xffe2aa,2.4,.95,3.95,0,0),pm=pool(g,0xffd08a,2.4,.95,0);
+ lamp({t,em:[[hm,2.2,.02]],op:[[hl.material,.7],[pm,.55]]});p.add(at(g,deg,r));return g}
+function uvBox(geo,w,h,d){const uv=geo.attributes.uv,dm=[[d,h],[d,h],[w,d],[w,d],[w,h],[w,h]];for(let f=0;f<6;f++)for(let k=0;k<4;k++){const i=f*4+k;uv.setXY(i,uv.getX(i)*dm[f][0]/6,uv.getY(i)*dm[f][1]/12)}uv.needsUpdate=true}
+function skyline(p,n,r0,r1,h0,h1,seed){let s=seed*9301+49297;const rn=()=>(s=s*16807%2147483647)/2147483647,roof=mat(0x181b22);
+ for(let i=0;i<n;i++){const a=(i+rn()*.6)/n*360,r=r0+rn()*(r1-r0),h=h0+rn()*(h1-h0),w=4+rn()*5,d=4+rn()*5,gi=i%5,g=new THREE.Group(),geo=B(w,h,d);uvBox(geo,w,h,d);
+  const m=new THREE.Mesh(geo,[WM[gi],WM[gi],roof,roof,WM[gi],WM[gi]]);m.position.y=h/2;g.add(m);
+  if(rn()<.4){add(g,CY(.07,.07,4,4),0x3c424e,0,h+2,0);beacon(g,0,h+4.1,0,(gi+1)*.2)}p.add(at(g,a,r))}
+ WM.forEach((m,i)=>lamp({t:(i+1)*.2-.001,em:[[m,1.15,.03]]}))}
+function billboard(p,deg,r,y,w,h,tb,tr,t){const g=new THREE.Group();add(g,B(w+.4,h+.4,.3),0x1a1e26,0,y,-.22);add(g,B(.35,y-h/2,.35),0x2a2f3a,0,(y-h/2)/2,-.3);
+ const ta=bbTex(tb[0],tb[1],'#ff3d5a'),tb2=bbTex(tr[0],tr[1],'#3df5c4'),m=new THREE.MeshBasicMaterial({map:ta,transparent:true,blending:THREE.AdditiveBlending,depthWrite:false});
+ add(g,new THREE.PlaneGeometry(w,h),m,0,y,0);let st=-1;
+ anims.push(tm=>{const on=PW.lv>=t?1:0;if(on!==st){st=on;m.map=on?tb2:ta}m.opacity=on?.95:(Math.random()<.1?.08:.8-.12*Math.sin(tm*23))});p.add(at(g,deg,r));return g}
+function dust(n,col,area,hgt,up){const pos=new Float32Array(n*3);for(let i=0;i<n;i++){pos[i*3]=(Math.random()-.5)*area;pos[i*3+1]=Math.random()*hgt;pos[i*3+2]=(Math.random()-.5)*area}
+ const geo=new THREE.BufferGeometry();geo.setAttribute('position',new THREE.BufferAttribute(pos,3));
+ const m=new THREE.PointsMaterial({color:col,size:up?.12:.08,transparent:true,opacity:0,depthWrite:false,blending:up?THREE.AdditiveBlending:THREE.NormalBlending});world.add(new THREE.Points(geo,m));
+ anims.push((tm,dt)=>{for(let i=0;i<n;i++){const j=i*3+1;let y=pos[j]+(up?1:-1)*dt*(.3+(i%7)*.06);if(y<0)y+=hgt;else if(y>hgt)y-=hgt;pos[j]=y;pos[i*3]+=Math.sin(tm*.6+i)*dt*.15}
+  geo.attributes.position.needsUpdate=true;m.opacity=up?.85*PW.lv:.75*(1-PW.lv*.9)})}
+
+/* ---------- 사람 실루엣 : 붕괴 땐 회색·스마트폰만 봄 → 복구되면 색을 되찾고 고개를 든다 ---------- */
+function person(p,o){const g=new THREE.Group(),gm=mat(GRAY),legs=[];
+ [-.09,.09].forEach(lx=>{const h=new THREE.Group();h.position.set(lx,.66,0);g.add(h);add(h,B(.13,.64,.15),gm,0,-.32,0);legs.push(h)});
+ const body=add(g,CY(.17,.21,.74,6),gm,0,1.03,0),neck=new THREE.Group();neck.position.y=1.4;g.add(neck);
+ const head=add(neck,IC(.16),gm,0,.17,0),phone=add(neck,B(.09,.15,.02),kmat('phone',{color:0x9fe8ff,emissive:0x9fe8ff,emissiveIntensity:1.8}),0,-.05,.27);phone.rotation.x=-.6;p.add(g);
+ const w={g,legs,body,head,neck,phone,gm,on:null,t:o.t==null?.6:o.t,col:o.col||WCOL[walkers.length%6],still:!!o.still,path:o.path,r:o.r,ph:0,sp:0};
+ if(o.path){const q=o.path;w.sp=(o.v||1)/Math.hypot(q[2]-q[0],q[3]-q[1]);w.ph=Math.random()*2}
+ else if(o.r){w.sp=(o.v||1)/o.r*(o.dir||1);w.ph=Math.random()*6.283}
+ if(o.pos){g.position.set(o.pos[0],0,o.pos[1]);g.rotation.y=o.pos[2]||0}
+ walkers.push(w);return w}
+function updWalkers(dt,tm){for(const w of walkers){const on=PW.lv>=w.t-1e-4;
+ if(on!==w.on){w.on=on;w.body.material=on?mat(w.col):w.gm;w.head.material=on?mat(SKIN):w.gm;w.legs.forEach(h=>{h.children[0].material=on?mat(0x2b3550):w.gm});w.phone.visible=!on}
+ w.neck.rotation.x+=((on?0:.6)-w.neck.rotation.x)*Math.min(1,dt*3);
+ if(w.still||!w.sp){w.g.position.y=Math.abs(Math.sin(tm*1.6+w.ph))*.02;continue}
+ w.ph+=dt*w.sp;let x,z,dx,dz;
+ if(w.path){const q=w.path,u=((w.ph%2)+2)%2,fw=u<1,f=fw?u:2-u;x=q[0]+(q[2]-q[0])*f;z=q[1]+(q[3]-q[1])*f;dx=(q[2]-q[0])*(fw?1:-1);dz=(q[3]-q[1])*(fw?1:-1)}
+ else{const a=w.ph,sg=w.sp<0?-1:1;x=Math.sin(a)*w.r;z=-Math.cos(a)*w.r;dx=Math.cos(a)*sg;dz=Math.sin(a)*sg}
+ const s=Math.sin(tm*7+w.ph*5);w.g.position.set(x,Math.abs(s)*.035,z);w.g.rotation.y=Math.atan2(dx,dz);w.legs[0].rotation.x=s*.55;w.legs[1].rotation.x=-s*.55}}
+
+/* ---------- 장면 관리 ---------- */
+function addObj(def,g,deg,r,y,ly){at(g,deg,r,y);g.userData={oid:def.id,ly};world.add(g);
+ const hit=new THREE.Mesh(SP(Math.max(1.1,ly*.36),6),HITM);hit.position.y=ly*.5;g.add(hit);objs.push({def,g,deg,r});return g}
+function resetWorld(pal){
+ if(world){scene.remove(world);world.traverse(o=>{if(o.geometry&&!o.isSprite)o.geometry.dispose();if(o.material)(Array.isArray(o.material)?o.material:[o.material]).forEach(m=>{if(!m.userData.keep)m.dispose()})})}
+ sceneTex.forEach(t=>t.dispose());sceneTex=[];
+ world=new THREE.Group();scene.add(world);anims=[];lamps=[];walkers=[];tags=[];R={};objs=[];
+ PW.pal=pal;PW.lv=PW.tg=0;PW.rate=.7;WM.forEach(m=>{m.emissiveIntensity=0});applyPal()}
+function buildScene(n){sceneN=n;tyaw=tpitch=null;vyaw=0;
+ if(GL){try{SCN[n]()}catch(err){console.error(err);toNoGL()}}
+ if(GL&&n>=0&&n<CH.length&&objs.length!==CH[n].objs.length)toNoGL();      // 장면 생성 실패 시에도 진행 가능
+ if(!GL)objs=(n>=0&&n<CH.length)?CH[n].objs.map(def=>({def,g:null})):[];
+ makeLabels()}
+function sceneSolved(n){const o=objs[n-1];if(GL&&o&&o.g)solvedFX(o.g);setPower(n/5)}
+function solvedFX(g){const mk=op=>new THREE.MeshBasicMaterial({color:0x3df5c4,transparent:true,opacity:op,blending:THREE.AdditiveBlending,depthWrite:false,side:THREE.DoubleSide});
+ const base=new THREE.Mesh(new THREE.RingGeometry(.9,1.02,40),mk(.6));base.rotation.x=-Math.PI/2;base.position.y=.07;g.add(base);if(RM)return;
+ const wv=new THREE.Mesh(new THREE.RingGeometry(.9,1.06,40),mk(.9));wv.rotation.x=-Math.PI/2;wv.position.y=.08;g.add(wv);
+ const bm=new THREE.Mesh(new THREE.CylinderGeometry(.9,.9,8,18,1,true),mk(.35));bm.position.y=4;g.add(bm);const t0=performance.now();
+ anims.push(()=>{const e=(performance.now()-t0)/1300;if(e>=1){[wv,bm].forEach(o=>{g.remove(o);o.geometry.dispose();o.material.dispose()});return 1}
+  wv.scale.setScalar(1+e*2.6);wv.material.opacity=.9*(1-e);bm.material.opacity=.35*(1-e);bm.scale.set(1-e*.7,1+e*.3,1-e*.7);return 0})}
+function lookAtObj(i){tags.forEach(t=>{if(t.tmp)t.exp=0});const o=objs[i];if(!GL||!o||!o.g)return;
+ tyaw=-o.deg*DEG;tpitch=clamp(Math.atan2(o.g.position.y+o.g.userData.ly*.5-1.7,o.r)*.9,-.3,.55)}
+
+/* ---------- 이름표 · 위치 태그 · 방향 화살표 ---------- */
+function makeLabels(){const box=$('labels');box.innerHTML='';tags=[];
+ lblEls=objs.map((o,i)=>{const b=document.createElement('button');b.type='button';b.className='lbl lock';
+  b.innerHTML='<i aria-hidden="true"></i><span>'+esc(o.def.name)+'</span><b>NEXT</b>';if(GL){b.style.display='none';b._v=false}
+  b.addEventListener('click',e=>{e.stopPropagation();tryObj(i)});box.appendChild(b);return b});
+ refreshLabels()}
+function refreshLabels(){lblEls.forEach((b,i)=>{const st=i<S.next?'done':i===S.next?'next':'lock';b.className='lbl '+st;
+ b.setAttribute('aria-label',(objs[i]?objs[i].def.name:'')+' — '+(st==='done'?'복구 완료':st==='next'?'다음 조사 대상':'잠김'))})}
+function addTag(em,txt,v,cls,ttl){if(!GL)return null;const el=document.createElement('div');el.className='tag'+(cls?' '+cls:'');
+ el.innerHTML=(em?'<em>'+esc(em)+'</em>':'')+esc(txt);el.style.display='none';$('labels').appendChild(el);
+ const t={el,v,exp:ttl?performance.now()+ttl:Infinity,tmp:!!ttl,_v:false};tags.push(t);return t}
+function placeUI(){const w=innerWidth,h=innerHeight;let L=false,Rt=false;
+ for(let i=0;i<objs.length;i++){const o=objs[i],el=lblEls[i];if(!o.g||!el)continue;
+  V.set(0,o.g.userData.ly,0);o.g.localToWorld(V);V.project(camera);const vis=V.z<1&&V.x>-1.05&&V.x<1.05&&V.y>-1.1&&V.y<1.1;
+  if(vis!==el._v){el._v=vis;el.style.display=vis?'':'none'}
+  if(vis)el.style.transform='translate3d('+((V.x+1)*w/2).toFixed(1)+'px,'+((1-V.y)*h/2-10).toFixed(1)+'px,0) translate(-50%,-100%)';
+  if(i===S.next&&!S.busy&&!S.over&&(!vis||Math.abs(V.x)>.9)){V.set(0,1,0);o.g.localToWorld(V);V.applyMatrix4(camera.matrixWorldInverse);if(V.x<0)L=true;else Rt=true}}
+ const now=performance.now();
+ for(let i=tags.length-1;i>=0;i--){const t=tags[i];if(now>t.exp){t.el.remove();tags.splice(i,1);continue}
+  V.copy(t.v).project(camera);const vis=V.z<1&&Math.abs(V.x)<1.1&&Math.abs(V.y)<1.1;
+  if(vis!==t._v){t._v=vis;t.el.style.display=vis?'':'none'}
+  if(vis)t.el.style.transform='translate3d('+((V.x+1)*w/2).toFixed(1)+'px,'+((1-V.y)*h/2).toFixed(1)+'px,0) translate(-50%,-50%)'}
+ if(L!==arL){arL=L;$('arrowL').classList.toggle('hide',!L)}if(Rt!==arR){arR=Rt;$('arrowR').classList.toggle('hide',!Rt)}}
+function pick(x,y){if(S.busy||S.over||!objs.length)return;const rc=renderer.domElement.getBoundingClientRect();
+ mv.set((x-rc.left)/rc.width*2-1,-((y-rc.top)/rc.height)*2+1);ray.setFromCamera(mv,camera);
+ for(const h of ray.intersectObjects(objs.map(o=>o.g),true)){let o=h.object,ok=true;while(o&&!(o.userData&&o.userData.oid)){if(!o.visible)ok=false;o=o.parent}
+  if(o&&ok){const i=objs.findIndex(k=>k.g===o);if(i>=0){tryObj(i);return}}}}
+
+/* ---------- 입력 : 드래그로 둘러보기 · 탭으로 조사/대화 진행 · 방향키 ---------- */
+function bindInput(cv){
+ cv.addEventListener('pointerdown',e=>{if(!GL||e.button>0)return;pd={x:e.clientX,y:e.clientY,m:0,id:e.pointerId,t:performance.now()};vyaw=0;try{cv.setPointerCapture(e.pointerId)}catch(_){}});
+ cv.addEventListener('pointermove',e=>{if(!pd||e.pointerId!==pd.id)return;const dx=e.clientX-pd.x,dy=e.clientY-pd.y,now=performance.now();pd.m+=Math.abs(dx)+Math.abs(dy);pd.x=e.clientX;pd.y=e.clientY;
+  if(pd.m>8){cv.classList.add('drag');tyaw=tpitch=null;const k=innerWidth<720?.0062:.0042;yaw+=dx*k;pitch=clamp(pitch+dy*k*.85,-.5,.7);vyaw=clamp(vyaw*.5+dx*k/Math.max(.008,(now-pd.t)/1000)*.5,-5,5);hideHint()}pd.t=now});
+ const up=e=>{if(!pd||e.pointerId!==pd.id)return;cv.classList.remove('drag');const tap=pd.m<=8,stale=performance.now()-pd.t>90;pd=null;if(tap||stale||RM)vyaw=0;
+  if(tap&&e.type==='pointerup'){if(S.dlg)advance();else pick(e.clientX,e.clientY)}};
+ cv.addEventListener('pointerup',up);cv.addEventListener('pointercancel',up);
+ cv.addEventListener('touchend',e=>{if(e.cancelable)e.preventDefault()},{passive:false});   // 모바일 유령 클릭 방지
+ cv.addEventListener('webglcontextlost',e=>{e.preventDefault();toNoGL()});
+ cv.addEventListener('contextmenu',e=>e.preventDefault());
+ addEventListener('resize',resize)}
+function keyLook(e){if(!GL||S.over)return;const k=e.key,y0=tyaw==null?yaw:tyaw,p0=tpitch==null?pitch:tpitch;
+ if(k==='ArrowLeft')tyaw=y0+.4;else if(k==='ArrowRight')tyaw=y0-.4;else if(k==='ArrowUp')tpitch=clamp(p0+.15,-.5,.7);else if(k==='ArrowDown')tpitch=clamp(p0-.15,-.5,.7);else return;e.preventDefault()}
+function resize(){if(!renderer)return;const w=innerWidth,h=innerHeight;renderer.setSize(w,h,false);camera.aspect=w/h;camera.fov=w<h?78:66;camera.updateProjectionMatrix()}
+
+/* ---------- 렌더 루프 · 부팅 ---------- */
+function loop(now){if(!GL){looping=false;return}requestAnimationFrame(loop);
+ const dt=Math.min(.05,lastT?(now-lastT)/1000:.016),tm=now/1000;lastT=now;
+ if(autoSpin&&!pd&&!RM)yaw+=dt*.05;
+ if(tyaw!==null){const d=Math.atan2(Math.sin(tyaw-yaw),Math.cos(tyaw-yaw));yaw+=d*Math.min(1,dt*4.5);if(Math.abs(d)<.002)tyaw=null}
+ if(tpitch!==null){const d=tpitch-pitch;pitch+=d*Math.min(1,dt*4.5);if(Math.abs(d)<.002)tpitch=null}
+ if(!pd&&vyaw){yaw+=vyaw*dt;vyaw*=Math.exp(-dt*5);if(Math.abs(vyaw)<.01)vyaw=0}
+ camera.rotation.set(pitch,yaw,0);updPower(dt);updWalkers(dt,tm);
+ for(let i=anims.length-1;i>=0;i--){try{if(anims[i](tm,dt)===1)anims.splice(i,1)}catch(e){console.error(e);anims.splice(i,1)}}
+ renderer.render(scene,camera);placeUI();
+ fAcc+=dt;fN++;if(fAcc>=3){if(!lowQ&&fAcc/fN>.036&&renderer.getPixelRatio()>1){lowQ=true;renderer.setPixelRatio(1);resize()}fAcc=0;fN=0}}   // 느린 기기 자동 화질 조정
+function startLoop(){if(looping||!GL)return;looping=true;requestAnimationFrame(loop)}
+function fontsReady(){if(!document.fonts||!document.fonts.load)return Promise.resolve();
+ return Promise.race([Promise.all([document.fonts.load('700 40px "Chakra Petch"'),document.fonts.load('900 100px "Noto Sans KR"','자원봉사')]).catch(()=>0),new Promise(r=>setTimeout(r,1500))])}
+function boot(){const go=$('go');let ok=false;try{ok=initGL()}catch(e){console.warn(e)}if(!ok)toNoGL();
+ const fin=()=>{if(booted)return;booted=true;try{if(GL){buildScene(-1);startLoop()}}catch(e){console.error(e);toNoGL()}go.disabled=false;go.textContent='조사 시작'};
+ (GL?fontsReady():Promise.resolve()).then(fin,fin);setTimeout(fin,4000)}
+$('go').addEventListener('click',()=>{if(GL){tyaw=0;tpitch=.03}});   // 시작하면 도시 코어 쪽으로 시선 이동
+</script>
+ 
+
