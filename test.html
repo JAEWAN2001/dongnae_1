@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="theme-color" content="#06070b">
+<title>동래구 기록 복구 프로젝트 : 미래 붕괴 도시</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&family=Noto+Sans+KR:wght@400;500;700;900&display=swap" rel="stylesheet">
+<style>
+/*
+ DESIGN — "BLACKOUT CITY × RECORD RESTORE"
+ VOICE  : 붕괴 직전 스마트시티의 복구 단말기. 긴박하지만 친절하게.
+ IDEA   : 행동 기록을 복구할 때마다 창문·네온·홀로그램이 하나씩 다시 켜진다.
+ COLOUR : 붕괴 = 스모그(녹·주황·보라) + 경보 레드 / 복구 = 민트 홀로그램 + 따뜻한 창문빛
+ TYPE   : Chakra Petch(숫자·영문 HUD) + Noto Sans KR(본문)
+*/
+:root{
+ --bg:#06070b;--glass:rgba(8,12,20,.74);--glass2:rgba(10,14,24,.94);--line:rgba(150,215,255,.16);
+ --mint:#3df5c4;--mintA:rgba(61,245,196,.15);--red:#ff3d5a;--redA:rgba(255,61,90,.16);
+ --amber:#ffb340;--sky:#66ccff;--violet:#b9a1ff;--ink:#eaf1ff;--sub:#8e9ab4;
+ --mono:"Chakra Petch","Noto Sans KR",system-ui,sans-serif;
+ --sans:"Noto Sans KR",system-ui,-apple-system,"Apple SD Gothic Neo","Malgun Gothic",sans-serif;
+ --sb:env(safe-area-inset-bottom,0px);--st:env(safe-area-inset-top,0px)
+}
+*{box-sizing:border-box;min-width:0;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;height:100%;overflow:hidden;background:var(--bg);color:var(--ink);font:16px/1.55 var(--sans);user-select:none;-webkit-user-select:none;touch-action:none;overscroll-behavior:none}
+button,input{font:inherit;color:inherit}
+input{user-select:text;-webkit-user-select:text}
+.hide{display:none!important}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+:focus-visible{outline:3px solid var(--mint);outline-offset:3px}
+
+/* 3D 캔버스와 화면 효과 */
+#c{position:fixed;inset:0;width:100%;height:100%;display:block;cursor:grab;transition:filter .6s}
+#c.drag{cursor:grabbing}
+body.past #c{filter:sepia(.6) saturate(1.3) brightness(1.08)}
+#vig{position:fixed;inset:0;z-index:2;pointer-events:none;background:radial-gradient(ellipse at 50% 45%,transparent 50%,rgba(0,0,0,.62) 100%)}
+#alarm{position:fixed;inset:0;z-index:3;pointer-events:none;background:radial-gradient(ellipse at center,transparent 38%,rgba(255,25,50,.5) 100%);animation:alarm 1.2s ease-in-out infinite}
+#scan{position:fixed;inset:0;z-index:7;pointer-events:none;opacity:.5;background:repeating-linear-gradient(180deg,rgba(255,255,255,.035) 0 1px,transparent 1px 3px)}
+#glitch{position:fixed;inset:0;z-index:19;pointer-events:none;opacity:0;mix-blend-mode:screen;background:linear-gradient(180deg,transparent 0 18%,rgba(61,245,196,.35) 18% 21%,transparent 21% 46%,rgba(255,61,90,.4) 46% 50%,transparent 50% 71%,rgba(255,255,255,.22) 71% 72.5%,transparent 72.5%)}
+#glitch.on{animation:gsweep .55s steps(6) 1}
+
+/* 오브젝트 이름표 */
+#labels{position:fixed;inset:0;z-index:4;pointer-events:none;overflow:hidden}
+.lbl{position:absolute;left:0;top:0;pointer-events:auto;cursor:pointer;display:flex;align-items:center;gap:6px;padding:6px 11px 6px 9px;border:1px solid var(--mint);border-radius:2px;background:rgba(4,20,18,.84);color:var(--mint);font:700 13px/1.2 var(--sans);white-space:nowrap;box-shadow:0 4px 14px rgba(0,0,0,.45)}
+.lbl::after{content:"";position:absolute;left:50%;bottom:-10px;width:1px;height:9px;background:currentColor;opacity:.7}
+.lbl i{flex:none;width:7px;height:7px;background:currentColor;transform:rotate(45deg)}
+.lbl b{display:none;margin-left:2px;padding:1px 5px;background:var(--mint);color:#032;font:700 10px var(--mono);letter-spacing:.1em}
+.lbl.next{animation:lpulse 1.4s infinite}.lbl.next b{display:inline}
+.lbl.lock{border-color:rgba(255,255,255,.22);color:rgba(230,236,255,.55);background:rgba(10,12,18,.72)}
+.lbl.lock i{background:none;border:1px solid currentColor}
+.lbl.done{border-color:rgba(61,245,196,.35);color:rgba(61,245,196,.75);background:rgba(4,20,18,.55)}
+.lbl.done i{transform:none;width:auto;height:auto;background:none;font-style:normal}
+.lbl.done i::before{content:"✓"}
+body.busy .lbl{pointer-events:none;opacity:.55}
+.tag{position:absolute;left:0;top:0;pointer-events:none;padding:5px 10px;border:1px solid var(--mint);background:rgba(3,18,16,.82);color:var(--mint);font:700 13px var(--sans);white-space:nowrap}
+.tag em{margin-right:6px;font:700 11px var(--mono);font-style:normal;opacity:.75}
+.tag.unk{border-color:var(--red);color:var(--red);background:rgba(30,4,8,.82);animation:blink 1s infinite}
+.arrow{position:fixed;top:50%;z-index:4;pointer-events:none;display:flex;align-items:center;gap:6px;transform:translateY(-50%);color:var(--mint);font:700 11px var(--mono);letter-spacing:.12em;animation:nudge 1s infinite}
+.arrow span{font-size:28px;line-height:1;text-shadow:0 0 12px rgba(61,245,196,.7)}
+#arrowL{left:10px}#arrowR{right:10px;flex-direction:row-reverse}
+#hint{position:fixed;left:50%;bottom:calc(20px + var(--sb));transform:translateX(-50%);z-index:4;pointer-events:none;padding:7px 16px;border:1px solid var(--line);border-radius:20px;background:rgba(0,0,0,.6);color:#d6deee;font-size:13px;white-space:nowrap}
+#rec{position:fixed;left:50%;top:calc(92px + var(--st));transform:translateX(-50%);z-index:6;pointer-events:none;display:flex;align-items:center;gap:8px;padding:6px 14px;border:1px solid var(--amber);background:rgba(40,24,6,.82);color:var(--amber);font:700 12px var(--mono);letter-spacing:.12em}
+#rec.live{border-color:var(--red);background:rgba(40,6,12,.82);color:var(--red)}
+#rec i{width:8px;height:8px;border-radius:50%;background:currentColor;animation:blink 1s infinite}
+
+/* HUD (AR 고글) */
+#hud{position:fixed;inset:0;z-index:5;pointer-events:none}
+.panel{position:absolute;background:var(--glass);border:1px solid var(--line);-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px)}
+.panel::before,.panel::after{content:"";position:absolute;width:9px;height:9px;border:2px solid var(--hc,var(--mint));pointer-events:none}
+.panel::before{left:-2px;top:-2px;border-right:0;border-bottom:0}
+.panel::after{right:-2px;bottom:-2px;border-left:0;border-top:0}
+body.alert .panel{--hc:var(--red)}
+.cap{display:block;color:var(--sub);font:600 10px/1.3 var(--mono);letter-spacing:.16em;text-transform:uppercase}
+#agent{left:14px;top:calc(14px + var(--st));padding:8px 14px 9px}
+#agent .row{display:flex;align-items:center;gap:7px;font:700 13px var(--mono);letter-spacing:.04em}
+#agent .dot{width:8px;height:8px;border-radius:50%;background:var(--red);box-shadow:0 0 8px var(--red);animation:blink 1s infinite}
+#agent.on .dot{background:var(--mint);box-shadow:0 0 8px var(--mint);animation:none}
+#place{display:block;margin-top:3px;color:var(--sub);font-size:12px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#timerBox{left:50%;top:calc(14px + var(--st));transform:translateX(-50%);padding:6px 20px 7px;text-align:center}
+#timer{font:700 30px/1.05 var(--mono);letter-spacing:.06em;font-variant-numeric:tabular-nums}
+#timer.low{color:var(--red);animation:blink .8s infinite}
+#timer.stop{color:var(--mint)}
+#goal{left:50%;top:calc(88px + var(--st));transform:translateX(-50%);padding:6px 14px;color:var(--mint);font-size:13px;font-weight:700;white-space:nowrap;max-width:92vw;overflow:hidden;text-overflow:ellipsis}
+#goal small{margin-left:8px;color:var(--sub);font:600 11px var(--mono)}
+#prog{right:14px;top:calc(14px + var(--st));width:200px;padding:8px 12px 10px}
+#prog .row{display:flex;justify-content:space-between;align-items:baseline;gap:6px}
+#pct{color:var(--mint);font:700 18px var(--mono)}
+#segs{display:flex;gap:2px;margin-top:7px}
+#segs i{flex:1;height:6px;background:rgba(255,255,255,.1)}
+#segs i:nth-child(5n){margin-right:3px}#segs i:last-child{margin-right:0}
+#segs i.on{background:var(--mint);box-shadow:0 0 6px rgba(61,245,196,.6)}
+#mute{position:absolute;right:14px;top:calc(84px + var(--st));width:38px;height:38px;display:grid;place-items:center;pointer-events:auto;cursor:pointer;border:1px solid var(--line);background:var(--glass);font-size:16px}
+#inv{left:14px;top:calc(86px + var(--st));width:200px;padding:10px 12px 12px}
+#items{display:flex;flex-wrap:wrap;gap:4px;margin:6px 0 10px;color:var(--sub);font-size:12px}
+.chip{padding:1px 7px;border:1px solid rgba(61,245,196,.45);background:var(--mintA);color:#c8fff0;font-size:12px}
+.chip.used{opacity:.4;text-decoration:line-through}.chip.flash{animation:pop .6s}
+#codes{display:flex;gap:6px;margin-top:6px}
+#codes span{width:32px;height:32px;display:grid;place-items:center;border:1px dashed rgba(255,255,255,.25);background:rgba(255,255,255,.05);color:var(--sub);font-size:15px;font-weight:900}
+#codes span.got{border:1px solid var(--red);background:var(--redA);color:#fff;box-shadow:0 0 10px rgba(255,61,90,.45);animation:pop .6s}
+
+/* 대화창 (통신 단말) */
+#dlg{position:fixed;left:50%;bottom:calc(14px + var(--sb));transform:translateX(-50%);z-index:8;width:min(920px,calc(100% - 24px));min-height:150px;padding:14px 26px 36px;cursor:pointer;background:var(--glass2);border:1px solid var(--line);border-left:3px solid var(--spk);box-shadow:0 14px 50px rgba(0,0,0,.55);--spk:var(--mint)}
+#dlg.S{--spk:var(--mint)}#dlg.S.W{--spk:var(--red)}#dlg.P{--spk:var(--amber)}#dlg.Y{--spk:var(--sky)}#dlg.V{--spk:var(--violet)}#dlg.N{--spk:#69728a}
+#who{display:inline-flex;align-items:center;gap:8px;margin-bottom:8px;padding:2px 10px;border:1px solid var(--spk);color:var(--spk);font:700 12px/1.6 var(--mono);letter-spacing:.12em}
+#dlg.N #who{display:none}
+#who .wave{display:none;align-items:flex-end;gap:2px;height:10px}
+#dlg.Y .wave,#dlg.V .wave{display:inline-flex}
+#who .wave i{width:2px;height:3px;background:currentColor;animation:wave .9s ease-in-out infinite}
+#who .wave i:nth-child(2){animation-delay:.15s}#who .wave i:nth-child(3){animation-delay:.3s}#who .wave i:nth-child(4){animation-delay:.45s}
+#txt{font-size:clamp(17px,2.15vw,21px);font-weight:700;line-height:1.62;white-space:pre-line}
+#dlg.N #txt{font-weight:500;font-style:italic;color:#cfd6e6}
+#txt .q{display:block;margin-top:6px;padding-left:12px;border-left:3px solid var(--mint);color:#c2fbeb}
+#tap{position:absolute;right:20px;bottom:10px;color:var(--sub);font:700 11px var(--mono);letter-spacing:.12em;animation:bob 1.2s infinite}
+
+/* 오버레이 · 카드 */
+.ov{position:fixed;inset:0;z-index:20;display:grid;place-items:center;padding:16px}
+.dim{background:rgba(4,6,12,.72);-webkit-backdrop-filter:blur(3px);backdrop-filter:blur(3px)}
+.card{position:relative;width:min(580px,100%);max-height:calc(100vh - 32px);overflow:auto;padding:24px 24px 20px;background:linear-gradient(180deg,rgba(14,20,34,.98),rgba(8,11,19,.98));border:1px solid var(--line);box-shadow:0 24px 70px rgba(0,0,0,.6)}
+.card::before,.card::after{content:"";position:absolute;width:16px;height:16px;border:2px solid var(--mint)}
+.card::before{left:-2px;top:-2px;border-right:0;border-bottom:0}.card::after{right:-2px;bottom:-2px;border-left:0;border-top:0}
+.card h3{margin:0;color:var(--mint);font:700 11px var(--mono);letter-spacing:.16em}
+#qno{float:right;color:var(--sub)}
+.card h2{margin:8px 0 14px;font-size:clamp(18px,2.5vw,22px);line-height:1.45}
+.opt{display:flex;gap:10px;align-items:flex-start;width:100%;margin:8px 0;padding:13px 16px;min-height:50px;text-align:left;cursor:pointer;border:1px solid rgba(255,255,255,.14);background:rgba(255,255,255,.035);font-size:16px;font-weight:500;line-height:1.45;transition:background .15s,border-color .15s}
+.opt .n{flex:none;margin-top:1px;color:var(--mint);font:700 14px var(--mono)}
+.opt:hover{background:var(--mintA);border-color:rgba(61,245,196,.55)}
+.opt.bad{pointer-events:none;border-color:var(--red);background:var(--redA);color:#ffc4cd}.opt.bad .n{color:var(--red)}
+.opt.good{border-color:var(--mint);background:rgba(61,245,196,.22)}
+.oxrow{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:6px}
+.oxrow .opt{justify-content:center;align-items:center;margin:0;min-height:110px;font:700 46px var(--mono)}
+.msg{min-height:22px;margin-top:8px;color:var(--red);font-size:14px;font-weight:700}
+.msg.ok{color:var(--mint)}
+.qfoot{margin-top:6px;color:var(--sub);font-size:12px}
+.shake{animation:shake .45s}
+.btn{display:inline-block;min-height:50px;padding:14px 32px;border:0;cursor:pointer;background:var(--mint);color:#02281c;font-size:17px;font-weight:900;clip-path:polygon(12px 0,100% 0,100% calc(100% - 12px),calc(100% - 12px) 100%,0 100%,0 12px);transition:filter .15s,transform .15s}
+.btn:hover{filter:brightness(1.1);transform:translateY(-1px)}
+.btn:disabled{opacity:.55;cursor:wait;transform:none}
+
+/* 시작 화면 */
+#start{z-index:30;background:linear-gradient(180deg,rgba(6,7,11,.1) 0%,rgba(6,7,11,.5) 45%,rgba(6,7,11,.93) 100%)}
+#start .in{max-width:640px;text-align:center}
+.tag0{display:inline-flex;align-items:center;gap:8px;padding:5px 12px;border:1px solid var(--red);background:rgba(40,4,10,.6);color:var(--red);font:700 12px var(--mono);letter-spacing:.12em;animation:blink 1.6s infinite}
+#start h1{margin:16px 0 4px;font-size:clamp(30px,6.4vw,54px);font-weight:900;line-height:1.12;text-shadow:0 4px 30px rgba(0,0,0,.7)}
+#start h1 small{display:block;margin-top:10px;color:var(--mint);font:700 clamp(13px,2.2vw,17px) var(--mono);letter-spacing:.35em}
+#start p{max-width:480px;margin:16px auto 22px;color:#d4dbea;text-shadow:0 2px 10px rgba(0,0,0,.85)}
+#start ul{display:flex;flex-wrap:wrap;justify-content:center;gap:8px;margin:0 0 26px;padding:0;list-style:none;font-size:13px}
+#start li{padding:5px 12px;border:1px solid var(--line);background:rgba(8,12,20,.72);color:#dfe6f3}
+.gl{position:relative;display:inline-block}
+.gl::before,.gl::after{content:attr(data-t);position:absolute;left:0;top:0;width:100%;height:100%;opacity:0;pointer-events:none}
+.gl::before{color:var(--red);animation:gl1 3.2s infinite}.gl::after{color:var(--mint);animation:gl2 4.1s infinite}
+
+/* 챕터 전환 · 토스트 · 코드 · 종료 */
+#title{z-index:15;pointer-events:none;background:radial-gradient(ellipse at center,rgba(4,8,14,.9) 0%,rgba(4,8,14,.97) 70%)}
+#title .tt{text-align:center}
+#title b{display:block;color:var(--mint);font:700 14px var(--mono);letter-spacing:.4em}
+#title h2{margin:10px 0 8px;font-size:clamp(26px,5.2vw,46px);font-weight:900;line-height:1.2}
+#title p{margin:0;color:var(--sub);font:600 12px var(--mono);letter-spacing:.2em}
+#title .bar{width:min(320px,70vw);height:3px;margin:16px auto 0;overflow:hidden;background:rgba(255,255,255,.1)}
+#title .bar i{display:block;width:0;height:100%;background:var(--mint);animation:load 1.9s ease-out forwards}
+#title.show{animation:fadeio 2.75s forwards}
+#toast{position:fixed;left:50%;top:calc(130px + var(--st));transform:translateX(-50%);z-index:25;pointer-events:none;opacity:0;transition:opacity .3s;padding:8px 18px;background:var(--red);color:#fff;font:700 16px var(--mono);letter-spacing:.06em}
+#toast.ok{background:var(--mint);color:#032}#toast.show{opacity:1}
+#glyphs{display:flex;justify-content:center;gap:10px;margin:4px 0 14px}
+#glyphs span{width:54px;height:54px;display:grid;place-items:center;border:1px solid var(--red);background:var(--redA);font-size:26px;font-weight:900;box-shadow:0 0 16px rgba(255,61,90,.35)}
+#codeIn{width:100%;margin:4px 0;padding:14px;text-align:center;letter-spacing:.5em;font-size:24px;font-weight:900;border:2px solid rgba(255,255,255,.2);background:#0b0f19;color:#fff}
+#fail{z-index:40;text-align:center;background:rgba(10,1,4,.95)}
+#fail h1{margin:0;color:var(--red);font:700 clamp(40px,10vw,86px) var(--mono);letter-spacing:.06em;animation:glitchT 1.4s infinite}
+#fail p{margin:12px 0 28px;color:#e8b8c0}
+#end{z-index:40;background:linear-gradient(180deg,rgba(4,18,16,.15),rgba(4,12,14,.72) 55%,rgba(4,10,12,.94))}
+#end .in{max-width:600px;text-align:center}
+#end .k{color:var(--mint);font:700 12px var(--mono);letter-spacing:.2em}
+#end h1{margin:8px 0 6px;font-size:clamp(30px,6.6vw,54px);font-weight:900}
+#end .big{margin:6px 0 4px;padding-left:.3em;color:var(--mint);font-size:clamp(40px,9vw,74px);font-weight:900;letter-spacing:.3em;text-shadow:0 0 28px rgba(61,245,196,.55)}
+#end .sys{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px 18px;max-width:440px;margin:18px auto;text-align:left;font-size:14px}
+#end .sys span{display:flex;justify-content:space-between;padding:3px 0;border-bottom:1px solid var(--line)}
+#end .sys span::after{content:"ON";color:var(--mint);font:700 13px var(--mono)}
+#end p{color:#cfe9e0}#endStat{color:var(--sub)!important;font-size:14px}
+
+/* WebGL 미지원 → 목록형 화면 */
+body.nogl{background:radial-gradient(ellipse at 50% 20%,#2a1a1e,#06070b 70%)}
+body.nogl #c{display:none}
+body.nogl #labels{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;padding:150px 16px 210px}
+body.nogl .lbl{position:relative;transform:none!important}
+body.nogl .lbl::after{display:none}
+
+@keyframes blink{50%{opacity:.35}}
+@keyframes lpulse{0%,100%{box-shadow:0 0 0 0 rgba(61,245,196,.55),0 4px 14px rgba(0,0,0,.45)}50%{box-shadow:0 0 0 8px rgba(61,245,196,0),0 4px 14px rgba(0,0,0,.45)}}
+@keyframes bob{50%{transform:translateY(3px)}}
+@keyframes nudge{50%{opacity:.35}}
+@keyframes pop{0%{transform:scale(.6)}60%{transform:scale(1.15)}100%{transform:scale(1)}}
+@keyframes shake{20%,60%{transform:translateX(-8px)}40%,80%{transform:translateX(8px)}}
+@keyframes alarm{50%{opacity:.3}}
+@keyframes fadeio{0%{opacity:0}12%,82%{opacity:1}100%{opacity:0}}
+@keyframes load{to{width:100%}}
+@keyframes wave{0%,100%{height:3px}50%{height:10px}}
+@keyframes gsweep{0%{opacity:1;transform:translateY(-30%)}20%{transform:translateY(10%)}40%{transform:translateY(-12%) scaleY(1.4)}60%{transform:translateY(25%)}80%{opacity:.8;transform:translateY(-5%)}100%{opacity:0;transform:none}}
+@keyframes gl1{0%,90%,100%{opacity:0;transform:none}91%{opacity:.85;transform:translate(-4px,0);clip-path:inset(12% 0 64% 0)}93%{opacity:.85;transform:translate(3px,0);clip-path:inset(58% 0 18% 0)}95%{opacity:0}}
+@keyframes gl2{0%,86%,100%{opacity:0;transform:none}87%{opacity:.8;transform:translate(4px,0);clip-path:inset(40% 0 38% 0)}89%{opacity:.8;transform:translate(-3px,0);clip-path:inset(4% 0 80% 0)}91%{opacity:0}}
+@keyframes glitchT{0%,100%{transform:none;text-shadow:none}20%{transform:translateX(-3px);text-shadow:3px 0 var(--mint)}40%{transform:translateX(3px);text-shadow:-3px 0 var(--sky)}}
+
+@media (max-width:720px){
+ #agent{left:8px;top:calc(8px + var(--st));max-width:33vw;padding:6px 9px 7px}
+ #agent .row{font-size:11px}#place{font-size:11px}
+ #timerBox{top:calc(8px + var(--st));padding:5px 12px}#timer{font-size:22px}#timerBox .cap{font-size:9px}
+ #prog{right:8px;top:calc(8px + var(--st));width:30vw;padding:6px 9px 8px}
+ #prog .cap{font-size:9px;letter-spacing:.06em}#pct{font-size:14px}
+ #segs{gap:1px}#segs i{height:5px}#segs i:nth-child(5n){margin-right:2px}
+ #goal,#rec{top:calc(70px + var(--st))}#goal{font-size:12px;max-width:calc(100vw - 16px)}
+ #inv{left:8px;top:calc(108px + var(--st));width:auto;max-width:46vw;padding:7px 9px 9px}
+ #items{margin:4px 0 6px}.chip{padding:0 5px;font-size:11px}
+ #codes span{width:24px;height:24px;font-size:12px}
+ #mute{right:8px;top:calc(108px + var(--st));width:34px;height:34px}
+ #dlg{min-height:132px;padding:12px 16px 32px}#tap{right:14px}
+ .lbl{padding:5px 9px 5px 7px;font-size:12px}.arrow b{display:none}
+ #toast{top:calc(112px + var(--st))}
+}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+<canvas id="c" aria-label="3D 조사 화면"></canvas>
+<div id="vig"></div>
+<div id="alarm" class="hide"></div>
+<div id="labels"></div>
+<div id="arrowL" class="arrow hide"><span>◀</span><b>NEXT</b></div>
+<div id="arrowR" class="arrow hide"><span>▶</span><b>NEXT</b></div>
+<div id="hint" class="hide">드래그로 둘러보고, 이름표를 눌러 조사하세요</div>
+<div id="rec" class="hide"><i></i><b id="recTxt"></b></div>
+
+<div id="hud" class="hide">
+ <div id="agent" class="panel"><div class="row"><span class="dot"></span><span id="agentTxt">LINK CONNECTING…</span></div><span id="place">DONGNAE CITY</span></div>
+ <div id="timerBox" class="panel"><span class="cap">Recovery Time</span><div id="timer">40:00</div></div>
+ <div id="goal" class="panel hide"></div>
+ <div id="prog" class="panel"><div class="row"><span class="cap">행동 기록 복구율</span><b id="pct">0%</b></div><div id="segs"></div></div>
+ <button id="mute" type="button" aria-label="소리 끄기">🔊</button>
+ <div id="inv" class="panel"><span class="cap">Items</span><div id="items">없음</div><span class="cap">Codes</span><div id="codes"><span>?</span><span>?</span><span>?</span><span>?</span></div></div>
+</div>
+<div id="scan"></div>
+
+<div id="dlg" class="hide"><div id="who"><span id="whoName">SYSTEM</span><span class="wave"><i></i><i></i><i></i><i></i></span></div><div id="txt"></div><div id="tap">TAP ▼</div></div>
+<div id="sr" class="sr" aria-live="polite"></div>
+
+<div id="quiz" class="ov dim hide" role="dialog" aria-modal="true" aria-labelledby="qtext"><div class="card" id="qcard">
+ <h3>DECRYPT · <span id="qobj"></span><span id="qno"></span></h3><h2 id="qtext"></h2><div id="qopts"></div><div class="msg" id="qmsg"></div>
+ <div class="qfoot">오답 시 남은 시간 −0:30 · 키보드 1~4로 선택할 수 있어요</div></div></div>
+
+<div id="codeBox" class="ov dim hide" role="dialog" aria-modal="true"><div class="card" id="ccard" style="text-align:center">
+ <h3>CENTRAL ARCHIVE · FINAL KEY</h3><h2>복구한 코드를 하나의 단어로 입력하세요</h2><div id="glyphs"></div>
+ <form id="codeForm" autocomplete="off"><input id="codeIn" maxlength="12" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="네 글자 입력" aria-label="최종 코드"><div class="msg" id="cmsg"></div><button class="btn" type="submit">기록 입력</button></form></div></div>
+
+<div id="title" class="ov hide"><div class="tt"><b id="tch"></b><h2 id="tname"></h2><p id="tsub"></p><div class="bar"><i></i></div></div></div>
+<div id="glitch"></div>
+<div id="toast"></div>
+
+<div id="start" class="ov"><div class="in">
+ <div class="tag0">⚠ DONGNAE CITY SYSTEM · 도시 기능률 17%</div>
+ <h1><span class="gl" data-t="동래구 기록 복구 프로젝트">동래구 기록 복구 프로젝트</span><small>미래 붕괴 도시</small></h1>
+ <p>전력이 끊기고 시스템이 멈춘 미래의 동래구. 네 구역에 남은 과거의 <b>행동 기록</b>을 복구하고, 코드 네 글자를 찾아 도시를 다시 가동하세요.</p>
+ <ul><li>⏱ 제한시간 40분</li><li>4개 구역 · 20문제</li><li>오답 시 −30초</li><li>드래그로 둘러보기 · 탭으로 조사</li></ul>
+ <button class="btn" id="go" type="button" disabled>시스템 접속 중…</button>
+ <div id="loadErr" class="msg hide">3D 화면을 불러오지 못해 목록형 화면으로 진행합니다.</div>
+</div></div>
+
+<div id="fail" class="ov hide"><div><h1>SYSTEM FAILURE</h1><p>복구 가능 시간이 초과되었습니다.<br>동래구 도시 시스템이 붕괴했습니다.</p><button class="btn" id="retry1" type="button">시스템 재접속 시도</button></div></div>
+
+<div id="end" class="ov hide"><div class="in">
+ <div class="k">DONGNAE CITY SYSTEM · 복구율 100%</div>
+ <h1>동래구 정상화 완료</h1>
+ <div class="big">자원봉사</div>
+ <div class="sys"><span>공공 유지 기록</span><span>공동체 연결망</span><span>환경 관리 시스템</span><span>취약계층 지원망</span><span>재난 대응 보조망</span><span>안전 시스템</span></div>
+ <p>“보이지 않던 행동이 사라지자, 도시가 무너졌다.”<br>그리고 그 행동이 돌아오자, 도시가 다시 움직이기 시작했다.</p>
+ <p id="endStat"></p>
+ <button class="btn" id="retry2" type="button">다시 플레이</button>
+</div></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
