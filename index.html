@@ -1537,3 +1537,128 @@ FX.archive=()=>{glitch();SFX.power();showRec('ARCHIVE RECOVERY · 기록 대량 
  tween(2.6,e=>{rg.position.y=.1+6*e;rm.opacity=.7*(1-e);if(e>=1)rg.visible=false});
  burst(world,0x3df5c4,60,Math.sin(d0*DEG)*4,1.5,-Math.cos(d0*DEG)*4,6,2.2,2.4);tpitch=.12};
 </script>
+
+<script>
+'use strict';
+/* ===== PART 4-C-1 : 동래구자원봉사센터 — 원형 아카이브 홀 · 챕터 4 연출 ===== */
+(function(){try{if(document.fonts&&document.fonts.load)['700 32px "Noto Sans KR"','900 32px "Noto Sans KR"'].forEach(f=>document.fonts.load(f,'시스템정지활동처교육안전배치기록관리넘어짐담당자즉시보고응급처치완료장갑착용도구사용법비상연락처확인필수약속서한시간에참여하고맡은역할을끝까지다하겠습니다서명환경정화급식지원재난복구어르신동행봉사행사①②③●→').catch(()=>0))}catch(e){}})();
+
+function photoTex(){return canvasTex(512,256,(x,w,h)=>{x.fillStyle='#1b1f27';x.fillRect(0,0,w,h);   // 함께한 활동사진 6장
+ const C=['#3df5c4','#ffb340','#66ccff','#ff8a5c','#c39bff','#9ccc65'],N=['환경정화','급식 지원','재난 복구','어르신 동행','교육 봉사','행사 지원'];
+ for(let i=0;i<6;i++){const px=18+(i%3)*166,py=i>2?136:14;x.fillStyle='#f3efe4';x.fillRect(px,py,144,108);x.fillStyle=['#8fc7e8','#a8d5a2','#f2c38b'][i%3];x.fillRect(px+7,py+7,130,70);
+  for(let k=0;k<3;k++){const cx=px+34+k*38;x.fillStyle=C[(i+k)%6];x.beginPath();x.arc(cx,py+30,10,0,7);x.fill();x.fillRect(cx-11,py+42,22,35)}
+  x.fillStyle='#2b2b2b';x.font='700 15px '+FONT_KR;x.fillText(N[i],px+9,py+98,128)}})}
+
+SCN[3]=function(){resetWorld(PAL.center);const W=world,D=CH[3].objs,RW=12.6;
+ /* 원형 홀 : 바닥 LED 링 · 벽 · 가운데가 뚫린 천장(천창) · 벽 상단 상태 표시줄 */
+ add(W,CY(13,13,.2,40),0x262a32,0,-.1,0);
+ const fr=neon(0x3df5c4);add(W,new THREE.RingGeometry(6.8,7,64),fr,0,.012,0).rotation.x=-Math.PI/2;lamp({t:.4,em:[[fr,1.4,0]]});
+ add(W,new THREE.CylinderGeometry(RW,RW,7.2,48,1,true),mat(0x363b46,{side:THREE.BackSide}),0,3.6,0);
+ add(W,new THREE.RingGeometry(4.2,RW+.2,48),mat(0x1f2229,{side:THREE.DoubleSide}),0,7.2,0).rotation.x=Math.PI/2;
+ const sb=hf(0xff3d5a,.6);add(W,new THREE.TorusGeometry(RW-.12,.05,3,96),sb,0,6.75,0).rotation.x=Math.PI/2;
+ anims.push(tm=>{const on=PW.lv>=.6-1e-4;sb.color.setHex(on?0x3df5c4:0xff3d5a);sb.opacity=on?.7:(Math.sin(tm*4)>0?.75:.12)});
+ /* 서버 랙 : 복구 단계마다 민트 LED 점등, 붉은 LED 소등 (89°·106°는 무너진 위험 구역) */
+ const rk=mat(0x1c2027),lr=neon(0xff3d5a,0x101318),gR=B(1.5,4.4,1.1),gL=B(1.1,.06,.02),lm=[.2,.4,.6,.8,1].map(t=>{const m=neon(0x3df5c4,0x101318);lamp({t,em:[[m,1.6,0]]});return m});
+ [55,72,89,106,123,140,157,174,191,208,225,276,293,310].forEach((d,i)=>{const g=new THREE.Group(),c=new THREE.Group();g.add(c);add(c,gR,rk,0,2.2,0);
+  for(let k=0;k<6;k++)add(c,gL,k%2?lm[i%5]:lr,0,.9+k*.6,.56);if(d===89||d===106){c.rotation.set(.45,0,d===89?.1:-.1);c.position.z=.4}W.add(at(g,d,11.9))});
+ anims.push(tm=>{lr.emissiveIntensity=(1-PW.lv)*(Math.sin(tm*6)>0?1.3:.15)});
+ /* 천장 조명 12개(FX.lights에서 하나씩 점등) · 붉은 비상등 4개(안전 복구 60%에서 백색으로) */
+ const cp=[];for(let i=0;i<12;i++){const a=(i*30+15)*DEG,x=Math.sin(a)*8.4,z=-Math.cos(a)*8.4,m=mat(0x4a4e58,{emissive:0xfff3dd,emissiveIntensity:0});
+  add(W,B(2.2,.1,.8),m,x,7.12,z).rotation.y=-a;cp.push({m,h:halo(W,0xfff1dc,3.4,x,6.85,z,0)})}R.cp=cp;
+ [45,135,225,315].forEach(d=>{const q=wxz(d,12.15);add(W,B(.4,.3,.3),0x2a2f38,q[0],6.3,q[1]);beacon(W,q[0],6.3,q[1],.6,0xdff6ff)});
+ /* 천창 아래 깨진 아카이브 링 : 완전 복구되면 고리가 이어져 회전하고 빛기둥이 솟는다 */
+ const ar=new THREE.Group(),rm=hf(0xff3d5a,.5),fm=hf(0x3df5c4,0),cm=hf(0x3df5c4,.1),sh=new THREE.Group();ar.position.y=6;W.add(ar);ar.add(sh);
+ const ri=[[3.5,1.4],[2.7,1.55],[1.9,1.2]].map((q,i)=>{const g=new THREE.Group();g.rotation.set(Math.PI/2+(i-1)*.28,(i-1)*.2,0);ar.add(g);
+  add(g,new THREE.TorusGeometry(q[0],.07,6,64,Math.PI*q[1]),rm).rotation.z=i*2;add(g,new THREE.TorusGeometry(q[0],.05,6,64),fm);return g});
+ const core=add(ar,IC(.55,1),cm);for(let k=0;k<18;k++){const a=k/18*6.283,r=1.2+Math.random()*2.6;add(sh,B(.14,.14,.14),cm,Math.cos(a)*r,(Math.random()-.5)*1.6,Math.sin(a)*r).rotation.set(k,k*2,0)}
+ const bm=hf(0x3df5c4,0);add(W,new THREE.CylinderGeometry(.6,1.6,40,12,1,true),bm,0,27,0);lamp({t:1,op:[[bm,.16]]});
+ anims.push((tm,dt)=>{const on=PW.lv>=.999;rm.color.setHex(on?0x3df5c4:0xff3d5a);rm.opacity=on?.85:(Math.random()<.07?.05:.45);fm.opacity+=((on?.5:0)-fm.opacity)*Math.min(1,dt*2);
+  cm.opacity=.1+.6*PW.lv;core.rotation.y=tm*.6;sh.rotation.y=tm*(.05+.4*PW.lv);if(on)ri.forEach((g,i)=>{g.rotation.z+=dt*(.4+i*.25)*(i%2?-1:1)})});R.ring=ar;
+ /* 정면 상황판 6개 : NO SIGNAL → FX.screens에서 하나씩 켜짐 */
+ const off=panelTex('NO SIGNAL',['시스템 정지','DATA LINK LOST'],'#ff3d5a'),scr=[];
+ [['활동처','MATCHING'],['교육','TRAINING'],['안전','SAFETY'],['배치','PLACEMENT'],['기록','RECORDS'],['관리','MANAGEMENT']].forEach((q,i)=>{const g=new THREE.Group(),y=i<3?4.15:2.35,m=hmap(off,.45);
+  add(g,B(2.6,1.6,.1),0x14171d,0,y,-.08);add(g,new THREE.PlaneGeometry(2.4,1.4),m,0,y,0);W.add(at(g,-33+(i%3)*13,12.1));scr.push({m,on:panelTex(q[1],[q[0],'● ONLINE'],'#3df5c4'),lit:false})});
+ R.scr=scr;anims.push(tm=>{scr.forEach((s,i)=>{if(!s.lit)s.m.opacity=Math.random()<.08?.1:.4+.06*Math.sin(tm*9+i)})});
+ /* 활동사진 벽 : 완전 복구되면 색을 되찾는다 */
+ {const g=new THREE.Group(),pm=new THREE.MeshBasicMaterial({map:photoTex(),color:0x555555});add(g,B(4.3,2.4,.1),0x14171d,0,2.6,-.08);add(g,new THREE.PlaneGeometry(4,2),pm,0,2.6,0);
+  lamp({t:1,fn:k=>{pm.color.setScalar(.33+.67*k)}});W.add(at(g,250,12.1))}
+ /* 오가는 직원 · 완전 복구되면 나타나는 자원봉사자 */
+ person(W,{path:[-6,-2,6,-3],v:.9,t:.4});person(W,{path:[-5,3,5.5,1.8],v:1,t:.8});
+ const vol=new THREE.Group();W.add(vol);lamp({t:1,vis:[vol]});
+ [[-36,5],[215,4.6]].forEach(q=>{const p=wxz(q[0],q[1]);person(vol,{still:true,t:1,col:0x3df5c4,pos:[p[0],p[1],-q[0]*DEG]})});
+
+ /* ① 사고보고서 : 책상 위 보고서 + 붉게 깜빡이는 태블릿 */
+ {const g=new THREE.Group(),tb=neon(0xff3d5a,0x0d1014);add(g,B(1.9,.1,1),0x4a505c,0,.9,0);
+  [[-.85,-.4],[.85,-.4],[-.85,.4],[.85,.4]].forEach(q=>add(g,B(.07,.9,.07),0x2a2f38,q[0],.45,q[1]));
+  add(g,B(.5,.02,.68),0xf3efe4,-.35,.96,.05).rotation.y=.15;add(g,B(.4,.012,.07),0xd1495b,-.35,.975,-.2).rotation.y=.15;add(g,B(.62,.42,.04),tb,.45,1.17,-.22).rotation.x=-.35;
+  add(g,new THREE.PlaneGeometry(1.5,.75),hmap(panelTex('ACCIDENT REPORT',['넘어짐 → 담당자 즉시 보고','응급처치 완료 ✓'],'#ff3d5a'),.85),0,1.8,.1);
+  anims.push(tm=>{const on=PW.lv>=.2-1e-4;tb.emissive.setHex(on?0x3df5c4:0xff3d5a);tb.emissiveIntensity=on?1.2:(Math.sin(tm*5)>0?1.3:.15)});addObj(D[0],g,-20,5,0,2.4)}
+ /* ② 안전교육 자료 : 벽면 홀로그램 교육판 */
+ {const g=new THREE.Group(),fl=neon(0xffb340);add(g,B(3.3,1.75,.1),0x14171d,0,2.75,-.08);
+  add(g,new THREE.PlaneGeometry(3.1,1.55),hmap(panelTex('SAFETY TRAINING',['① 장갑 착용','② 도구 사용법','③ 비상 연락처'],'#ffb340'),.9),0,2.75,0);
+  add(g,B(3.3,.06,.06),fl,0,1.82,.04);lamp({t:.4,em:[[fl,1.5,0]]});addObj(D[1],g,35,12,0,3.95)}
+ /* ③ 경고 표시 : 무너진 위험 구역 앞 표지판 → 안전 시스템이 켜지면 민트빛 보호 펜스 */
+ {const g=new THREE.Group(),ym=mat(0xffc93c,{emissive:0x664400,emissiveIntensity:.3}),tp=new THREE.MeshStandardMaterial({map:stripeTex(),roughness:.7}),fz=hf(0x3df5c4,0);
+  add(g,CY(.05,.05,1.4,6),0x666b74,0,.7,0);add(g,CY(.35,.4,.1,10),0x333840,0,.05,0);add(g,CY(.72,.72,.08,3),ym,0,1.75,0).rotation.set(Math.PI/2,Math.PI,0);
+  add(g,B(.1,.38,.1),0x1b1b1b,0,1.8,.06);add(g,B(.1,.1,.1),0x1b1b1b,0,1.48,.06);
+  [-1.6,1.6].forEach(x=>add(g,CY(.06,.08,1.1,6),0x2b2f36,x,.55,-.9));add(g,B(3.2,.16,.02),tp,0,.95,-.9);
+  for(let k=0;k<6;k++)add(g,k%2?B(.9,.25,.5):IC(.35),k%2?0x4a505c:0x5d6670,(k-2.5)*.6,.15,-2-(k%3)*.5).rotation.set(k,k*1.3,0);
+  add(g,B(3.6,.35,.35),0x30353f,.3,1.3,-2.4).rotation.z=.5;
+  const sp=halo(g,0xffc060,.9,-.9,1.9,-2.2,0);anims.push(()=>{sp.material.opacity=PW.lv<.6&&Math.random()<.15?.95:0});
+  add(g,new THREE.PlaneGeometry(3.4,1.6),fz,0,.8,-1.05);lamp({t:.6,op:[[fz,.28]]});R.sign={g};addObj(D[2],g,95,6,0,2.6)}
+ /* ④ 공구함 : 작업대 위 빨간 공구함 + 확인 메모 */
+ {const g=new THREE.Group();add(g,B(1.7,.08,.85),0x5a6070,0,.85,0);[[-.75,-.35],[.75,-.35],[-.75,.35],[.75,.35]].forEach(q=>add(g,B(.07,.85,.07),0x2a2f38,q[0],.42,q[1]));
+  add(g,B(1,.42,.48),0xc0392b,0,1.1,0);add(g,B(.5,.07,.07),0x1b1b1b,0,1.42,0);add(g,B(.06,.12,.06),0x1b1b1b,-.22,1.36,0);add(g,B(.06,.12,.06),0x1b1b1b,.22,1.36,0);
+  add(g,B(.75,.05,.1),0x9aa1ab,.3,.92,.25).rotation.y=.5;add(g,CY(.04,.04,.6,6),0xffb340,-.45,.92,.22).rotation.z=Math.PI/2;
+  add(g,new THREE.PlaneGeometry(1.1,.55),hmap(panelTex('CHECK',['사용 전','담당자 확인 필수'],'#ffb340'),.85),0,1.85,.15);addObj(D[3],g,150,5,0,2.3)}
+ /* ⑤ 활동 약속서 : 받침대 위 홀로그램 약속서 (복구 80%부터 빛나며 다음 목표를 알려준다) */
+ {const g=new THREE.Group(),pr=neon(0x3df5c4,0x2a2f38),pm=hmap(panelTex('PLEDGE · 활동 약속서',['약속한 시간에 참여하고','맡은 역할을 끝까지 다하겠습니다','서명 312명 ✓'],'#3df5c4'),.35);
+  add(g,CY(.45,.62,1,8),0x5c6170,0,.5,0);add(g,CY(.5,.5,.05,24),pr,0,1.02,0);add(g,B(.7,.02,.9),0xefe6cf,0,1.06,0).rotation.x=-.2;
+  const pp=add(g,new THREE.PlaneGeometry(1.6,.8),pm,0,1.85,0);lamp({t:.8,em:[[pr,1.4,.15]],fn:k=>{pm.opacity=.35+.6*k}});
+  anims.push(tm=>{pp.position.y=1.85+Math.sin(tm*1.3)*.05});addObj(D[4],g,200,4,0,2.6)}
+ dust(150,0x9a8a90,24,7,false);dust(70,0x3df5c4,22,7,true);unfog();view(-20,.4)};
+
+/* ================= 연출 : 챕터 4 ================= */
+FX.screens=()=>{SFX.power();const s=R.scr;if(!GL||!s)return;const sc=world;tpitch=.12;
+ s.forEach((x,i)=>setTimeout(()=>{if(world!==sc)return;x.lit=true;x.m.map=x.on;x.m.opacity=.95;SFX.tick()},250+i*230))};
+FX.lights=()=>{const c=R.cp;if(!GL||!c)return;const sc=world;tpitch=.3;
+ c.forEach((p,i)=>setTimeout(()=>{if(world!==sc)return;SFX.tick();tween(.45,e=>{const k=e<.8&&Math.random()<.5?.08:1;p.m.emissiveIntensity=1.3*k;p.h.material.opacity=.5*k})},i*150))};
+FX.safety=()=>{SFX.power();const s=R.sign;if(!GL||!s)return;addTag('SAFETY','SYSTEM ONLINE',wpos(s.g,0,1.75,-1.05),'',8000);wave(s.g,0x3df5c4,0,.1,-1,true,5,1.6);burst(s.g,0x3df5c4,26,0,1.2,-1,2,1.2)};
+FX.codeInput=()=>{setBusy(true);openCode();if(GL&&R.ring){tpitch=.55;burst(R.ring,0x3df5c4,50,0,0,0,4,1,2.2)}return 'wait'};
+</script>
+
+<script>
+'use strict';
+/* ===== PART 4-C-2 : 3단계 검수 패치 (앞 PART를 직접 고치지 않고 여기서 바로잡음) · 실행 ===== */
+(function(){
+ /* 1) 시간 초과와 정답 처리가 겹쳐도 실패 화면 뒤에서 대사·챕터가 이어지지 않게 */
+ const run0=run;run=function(l,d){if(!S.over)run0(l,d)};
+ /* 2) 프롤로그 과거 영상 중 달린 열차가 현재로 돌아오면 끊어진 구간 앞 정거장으로 복귀 */
+ train=function(p,r,y,start){const wh=mat(0xcfd6e0,{roughness:.4,metalness:.3}),win=neon(0x9fdcff,0x16202b),cars=[],dA=5.35/r/DEG;let hl=null,ph=start;
+  for(let i=0;i<3;i++){const g=new THREE.Group();add(g,B(5,1.15,1.35),wh);add(g,B(4.6,.36,1.38),win,0,.16,0);
+   if(!i){add(g,new THREE.CylinderGeometry(.02,.68,1.5,4,1),wh,3.25,0,0).rotation.set(Math.PI/4,0,-Math.PI/2);hl=halo(g,0xffffff,1.8,4,0,0,0)}p.add(g);cars.push(g)}
+  lamp({t:1,em:[[win,1.6,0]],op:[[hl.material,.9]]});
+  anims.push((tm,dt)=>{ph=PW.lv>=.999?ph+dt*11:start;for(let i=0;i<3;i++)at(cars[i],ph-i*dA,r,y)});return cars};
+ /* 3) 과거 기록 영상 동안 '현재' 자원봉사자를 숨겨 홀로그램과 같은 자리에 겹치지 않게 (광장·시장) */
+ const helpers=on=>walkers.forEach(w=>{if(w.still&&(w.col===0x3df5c4||w.col===0xffb340))w.g.visible=on});
+ [['past','present'],['replay','replayOff']].forEach(k=>{const a=FX[k[0]],b=FX[k[1]];FX[k[0]]=x=>{a(x);helpers(false)};FX[k[1]]=x=>{b(x);helpers(true)}});
+ /* 4) 행인이 게시판·어르신·통제선·누각을 통과하거나 서로 겹치던 경로 재배치
+    5) 화면 위 HUD에 가려지던 이름표(깃발·나무·구름) 높이 조정 */
+ const WF={'-1':[[3,[-8.5,8.1,8.2,8.6]]],0:[['r',8.7]],1:[[1,[8,4.8,-8,3.6]],[3,[8.8,-6.5,9.2,5.5]]],2:[[3,[16,-12,-16,-11.9]]]},
+  LY={0:{0:3.9},2:{1:3.4,4:-.5}},bs0=buildScene;
+ buildScene=function(n){bs0(n);if(!GL)return;const pw=walkers.filter(w=>w.path);
+  (WF[n]||[]).forEach(f=>{if(f[0]==='r'){walkers.forEach(w=>{if(w.r){w.sp*=w.r/f[1];w.r=f[1]}});return}
+   const w=pw[f[0]],p=f[1];if(!w)return;const q=w.path,v=w.sp*Math.hypot(q[2]-q[0],q[3]-q[1]);w.path=p;w.sp=v/Math.hypot(p[2]-p[0],p[3]-p[1])});
+  const ly=LY[n]||{};Object.keys(ly).forEach(i=>{const o=objs[i];if(o&&o.g)o.g.userData.ly=ly[i]})};
+ /* 6) 휴대폰·가로 화면에서 문제 카드가 주소창 뒤로 잘리던 문제 */
+ const st=document.createElement('style');
+ st.textContent='.card{max-height:calc(100vh - 32px);max-height:calc(100dvh - 32px);overscroll-behavior:contain;touch-action:pan-y}'+
+  '@media (max-width:720px),(max-height:600px){.ov{padding:10px}.card{padding:18px 16px 14px;max-height:calc(100vh - 20px);max-height:calc(100dvh - 20px)}'+
+  '.card h2{margin:6px 0 10px;font-size:17px}.opt{margin:6px 0;padding:10px 12px;min-height:44px;font-size:15px}.oxrow .opt{min-height:84px;font-size:38px}'+
+  '.qfoot{font-size:11px}#glyphs span{width:44px;height:44px;font-size:22px}}';
+ document.head.appendChild(st);
+})();
+boot();
+</script>
+</body>
+</html>
